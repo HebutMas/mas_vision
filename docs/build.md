@@ -8,6 +8,7 @@
 | Ninja | 任意 | apt 安装即可  |
 | GCC / G++ | >= 11 | apt 安装即可  |
 | OpenCV | = 4.10.0 | 使用 scripts/build_opencv.sh 脚本安装  |
+| Rerun SDK(可选) | 0.38.1 | 仅根 `CMakeLists.txt` 里 `set(RM_DEBUG ON)` 时需要;依赖随仓库 `3rdparty/` 携带 |
 
 ## 安装构建工具
 ```bash
@@ -72,7 +73,7 @@ set(APPS infantry)
 ./scripts/lint.sh
 
 # 或分别执行
-find apps \( -name '*.hpp' -o -name '*.cpp' \) -print0 | xargs -0 clang-format --dry-run --Werror  # 格式检查
+find tools apps \( -name '*.hpp' -o -name '*.cpp' \) -print0 | xargs -0 clang-format --dry-run --Werror  # 格式检查
 run-clang-tidy -p build -quiet          # Clang AST 语义检查
 cppcheck --project=build/compile_commands.json  # 独立解析,缺陷类检查
 ```
@@ -84,6 +85,16 @@ cppcheck --project=build/compile_commands.json  # 独立解析,缺陷类检查
 - 抑制规则写在 `.cppcheck-suppressions`;源码内也可用 `// cppcheck-suppress <id>` 就近抑制。
 - 两者互补:cppcheck 独立解析、快,擅长数据流/未初始化/越界等缺陷;clang-tidy 基于 Clang AST,语义准确、可自动修复。重复告警各自抑制即可。
 - 编辑器若支持 clangd,会自动读取 `.clang-format` / `.clang-tidy`。
+
+## 测试
+
+用例由 CTest 驱动
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j4
+ctest --test-dir build --output-on-failure
+```
 
 ## 运行
 

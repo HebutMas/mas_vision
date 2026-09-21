@@ -6,7 +6,7 @@ foreach(app ${APPS})
   endif()
 
   add_executable(${app} ${app}/main.cpp)
-  target_link_libraries(${app} PRIVATE ${OpenCV_LIBS})
+  target_link_libraries(${app} PRIVATE tools ${OpenCV_LIBS})
 endforeach()
 
 message(STATUS "Building apps: ${APPS}")
