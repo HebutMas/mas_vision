@@ -1,0 +1,13 @@
+# cppcheck suppression list (one id per line).
+#
+# cppcheck does not read this automatically; pass it on the command line:
+#   cppcheck --project=build/compile_commands.json --suppressions-list=.cppcheck-suppressions ...
+#
+# Format: <id>[:<file>[:<line>]], e.g.:
+#   arrayIndexOutOfBounds:tools/spsc_queue.hpp:40
+
+# System headers are not ours to fix; ignore missing-include noise.
+missingIncludeSystem
+
+# Do not warn about suppressions that never matched (keeps the list tidy in CI).
+unmatchedSuppression

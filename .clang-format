@@ -1,0 +1,20 @@
+---
+# Keep this minimal: only options where the project deviates from LLVM defaults.
+Language: Cpp
+BasedOnStyle: LLVM
+Standard: c++17
+
+ColumnLimit: 100
+
+# Braces on their own line
+BreakBeforeBraces: Allman
+
+# `Type & ref`, `Type * ptr`, `Type ** ptr`
+PointerAlignment: Middle
+
+# One-line guards like `if (!ok) return;`, but no one-line functions/blocks
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortFunctionsOnASingleLine: None
+
+BreakTemplateDeclarations: Yes
+...

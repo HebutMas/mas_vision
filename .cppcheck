@@ -1,0 +1,14 @@
+# 只分析本项目目录,忽略系统头与 OpenCV
+buildDir=build
+suppressions-list=.cppcheck-suppressions
+
+# 检查等级
+enable=warning,style,performance,portability
+
+# 允许源码内 // cppcheck-suppress <id> 注释
+inline-suppr
+
+# 有发现即返回非 0,便于 CI
+error-exitcode=1
+
+std=c++17

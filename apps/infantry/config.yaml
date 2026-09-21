@@ -1,0 +1,5 @@
+camera.type: null
+transport.type: null
+detector.algorithm: null
+track.algorithm: null
+shoot.algorithm: null

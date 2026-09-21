@@ -1,0 +1,45 @@
+# Build output
+build/
+build-*/
+cmake-build-*/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+install_manifest.txt
+
+# Ninja / Make
+.ninja_deps
+.ninja_log
+Makefile
+
+# OpenCV source build (build_opencv.sh)
+opencv-build/
+
+# Editors / IDE
+.vscode/
+.idea/
+.cache/
+*.swp
+*.swo
+*~
+
+# Binaries and artifacts
+*.o
+*.a
+*.so
+*.so.*
+*.bin
+
+# Runtime output
+logs/
+record/
+*.log
+*.avi
+*.mp4
+
+# OS
+.DS_Store
+Thumbs.db
