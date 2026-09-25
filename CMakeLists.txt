@@ -12,16 +12,29 @@ endif()
 # Which apps to build; edit this list. Options: infantry hero sentry dart
 set(APPS infantry)
 
-# 远程调试(Rerun):编辑此处开关。
-set(RM_DEBUG ON)
+# 远程调试(Rerun):默认开启。可在配置时用 -DRM_DEBUG=OFF 关闭,跳过 Rerun/Arrow 编译。
+option(RM_DEBUG "Enable Rerun remote-debugging (builds Arrow, slow)" ON)
 
 find_package(OpenCV REQUIRED)
+find_package(yaml-cpp REQUIRED)
+
+# yaml-cpp 在 Ubuntu 22.04(0.7.0)只导出 yaml-cpp,在 Debian 13(0.8.0)才带命名空间,
+# 两边的 imported target 名不同,这里统一成一个变量供下层链接。
+if(TARGET yaml-cpp::yaml-cpp)
+  set(RM_YAML_CPP_TARGET yaml-cpp::yaml-cpp)
+else()
+  set(RM_YAML_CPP_TARGET yaml-cpp)
+endif()
 
 include_directories(${PROJECT_SOURCE_DIR})
 
 enable_testing()
 
 if(RM_DEBUG)
+  # 优先使用系统/基础镜像里预装的 rerun_sdk(已连同 Arrow 静态库一起装在 /usr/local),
+  # 命中即跳过下面的 FetchContent 与 Arrow 源码编译;否则回退到仓库内 3rdparty 的 SDK 自行构建。
+  find_package(rerun_sdk CONFIG QUIET)
+  if(NOT rerun_sdk_FOUND)
   include(FetchContent)
   # 默认用仓库内 3rdparty/ 里已随源码携带的 SDK,离线可用;也可覆盖成本地路径或 URL。
   set(RM_RERUN_SDK_ZIP "${PROJECT_SOURCE_DIR}/3rdparty/rerun_cpp_sdk.zip"
@@ -85,6 +98,7 @@ if(RM_DEBUG)
     message(STATUS "Pre-seeding xsimd from ${RM_XSIMD_TARBALL}")
     file(MAKE_DIRECTORY "${_xsimd_dir}")
     file(COPY "${RM_XSIMD_TARBALL}" DESTINATION "${_xsimd_dir}")
+  endif()
   endif()
 endif()
 

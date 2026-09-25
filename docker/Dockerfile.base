@@ -1,0 +1,56 @@
+# 基础镜像:从发行版原始镜像出发,装齐完整编译环境(工具链 + 项目依赖 + 源码编译的 OpenCV 4.10)。
+# 日常新增依赖请改 docker/Dockerfile(增量层),不要动这里。
+ARG BASE_IMAGE=ubuntu:22.04
+FROM ${BASE_IMAGE} AS base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# apt 源换中科大(USTC)
+RUN for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list; do \
+      [ -f "$f" ] || continue; \
+      sed -i \
+        -e 's|http://archive.ubuntu.com/ubuntu|http://mirrors.ustc.edu.cn/ubuntu|g' \
+        -e 's|http://security.ubuntu.com/ubuntu|http://mirrors.ustc.edu.cn/ubuntu|g' \
+        -e 's|http://deb.debian.org/debian|http://mirrors.ustc.edu.cn/debian|g' \
+        -e 's|http://security.debian.org/debian-security|http://mirrors.ustc.edu.cn/debian-security|g' \
+        "$f"; \
+    done
+
+# 工具链 + 项目依赖。
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      build-essential \
+      cmake \
+      ninja-build \
+      git \
+      pkg-config \
+      libyaml-cpp-dev \
+      ca-certificates \
+      sudo \
+ && rm -rf /var/lib/apt/lists/*
+
+
+# OpenCV 4.10 源码编译并安装
+FROM base AS opencv410
+COPY scripts/build_opencv.sh /tmp/build_opencv.sh
+RUN chmod +x /tmp/build_opencv.sh \
+ && /tmp/build_opencv.sh -j4 --prefix /usr/local --register-ldconfig \
+ && rm -rf /root/opencv-build /tmp/build_opencv.sh
+
+
+# Rerun C++ SDK + Arrow:编译并安装
+FROM opencv410 AS rerun
+COPY . /tmp/rm-src
+RUN cmake -S /tmp/rm-src -B /tmp/rm-build -G Ninja \
+      -D CMAKE_BUILD_TYPE=Release \
+      -D RM_DEBUG=ON \
+      -D CMAKE_INSTALL_PREFIX=/usr/local \
+ && cmake --build /tmp/rm-build -j4 \
+ && cmake --install /tmp/rm-build \
+ && rm -rf /tmp/rm-src /tmp/rm-build
+
+
+# 基础镜像终态:供增量层(FROM rm_vision-base:*)作为底座。
+FROM rerun AS final
+WORKDIR /work
+CMD ["bash"]

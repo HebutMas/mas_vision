@@ -1,0 +1,55 @@
+# Docker 开发环境。分两层镜像:
+#   rm_vision-base:<distro> —— 完整编译环境,profile=base
+#   rm_vision:<distro>      —— 在基础镜像上叠加的增量层,日常用;新增 apt/第三方编译只改 docker/Dockerfile
+#
+# 首次或需要从头重建基础:
+#   docker compose -f docker/compose.yaml --profile base build
+# 日常开发(只叠加增量层;仓库挂载在 /work):
+#   docker compose -f docker/compose.yaml build ubuntu22
+#   docker compose -f docker/compose.yaml run -T --rm ubuntu22 \
+#     bash -c 'cmake -S . -B build-docker-ubuntu22 -G Ninja && cmake --build build-docker-ubuntu22 -j && ctest --test-dir build-docker-ubuntu22 --output-on-failure'
+# 叠加稳定后固化为新基础镜像,后续继续在其上叠加:
+#   docker tag rm_vision:ubuntu22.04 rm_vision-base:ubuntu22.04
+x-base: &base
+  volumes:
+    - ..:/work
+  working_dir: /work
+  # 以宿主用户身份运行。
+  user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+
+services:
+  ubuntu22-base:
+    profiles: ["base"]
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.base
+      args:
+        BASE_IMAGE: ubuntu:22.04
+    image: rm_vision-base:ubuntu22.04
+
+  debian13-base:
+    profiles: ["base"]
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.base
+      args:
+        BASE_IMAGE: debian:13
+    image: rm_vision-base:debian13
+
+  ubuntu22:
+    <<: *base
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        RM_BASE_IMAGE: rm_vision-base:ubuntu22.04
+    image: rm_vision:ubuntu22.04
+
+  debian13:
+    <<: *base
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        RM_BASE_IMAGE: rm_vision-base:debian13
+    image: rm_vision:debian13

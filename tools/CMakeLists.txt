@@ -2,6 +2,14 @@
 add_library(tools INTERFACE)
 target_include_directories(tools INTERFACE ${PROJECT_SOURCE_DIR})
 
+# 配置解析:YAML 由 yaml-cpp 提供
+target_link_libraries(tools INTERFACE ${RM_YAML_CPP_TARGET})
+
+add_executable(config_test config/test.cpp)
+target_link_libraries(config_test PRIVATE tools)
+
+add_test(NAME config COMMAND config_test)
+
 if(RM_DEBUG)
   target_compile_definitions(tools INTERFACE RM_DEBUG)
   target_link_libraries(tools INTERFACE rerun_sdk)

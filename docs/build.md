@@ -6,9 +6,10 @@
 |---|---|---|
 | CMake | >= 3.16 | apt 安装即可 |
 | Ninja | 任意 | apt 安装即可  |
-| GCC / G++ | >= 11 | apt 安装即可  |
+| GCC / G++ | >= 11 | apt 安装即可 |
+| yaml-cpp | >= 0.7 | 配置解析用,apt 安装即可|
 | OpenCV | = 4.10.0 | 使用 scripts/build_opencv.sh 脚本安装  |
-| Rerun SDK(可选) | 0.38.1 | 仅根 `CMakeLists.txt` 里 `set(RM_DEBUG ON)` 时需要;依赖随仓库 `3rdparty/` 携带 |
+| Rerun SDK(可选) | 0.38.1 | `set(RM_DEBUG ON)` 时需要 |
 
 ## 安装构建工具
 ```bash
@@ -18,11 +19,12 @@ sudo apt-get install -y \
   cmake \
   ninja-build \
   git \
-  pkg-config
+  pkg-config \
+  libyaml-cpp-dev
 ```
 
 ## 从源码构建 OpenCV 4.10
-> 仓库 `scripts/` 下提供 `build_opencv.sh`,会自动安装编译依赖、下载并校验源码与第三方依赖(ippicv / ade)、关闭 CUDA、启用 IPP/TBB/V4L/GStreamer,最后安装到指定前缀。
+> 仓库 `scripts/` 下提供 `build_opencv.sh`,会自动安装编译依赖
 ```bash
 ./scripts/build_opencv.sh -j4 --prefix /usr/local --register-ldconfig
 ```
@@ -77,14 +79,6 @@ find tools apps \( -name '*.hpp' -o -name '*.cpp' \) -print0 | xargs -0 clang-fo
 run-clang-tidy -p build -quiet          # Clang AST 语义检查
 cppcheck --project=build/compile_commands.json  # 独立解析,缺陷类检查
 ```
-
-说明:
-
-- `clang-tidy` 与 `cppcheck` 需要先生成编译数据库:`cmake -S . -B build -G Ninja`。
-- `cppcheck` 会自动读取仓库根目录的 `.cppcheck` 配置文件(检查等级、退出码、C++ 标准等),无需重复传参。
-- 抑制规则写在 `.cppcheck-suppressions`;源码内也可用 `// cppcheck-suppress <id>` 就近抑制。
-- 两者互补:cppcheck 独立解析、快,擅长数据流/未初始化/越界等缺陷;clang-tidy 基于 Clang AST,语义准确、可自动修复。重复告警各自抑制即可。
-- 编辑器若支持 clangd,会自动读取 `.clang-format` / `.clang-tidy`。
 
 ## 测试
 

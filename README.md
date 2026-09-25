@@ -13,14 +13,6 @@ RoboMaster 自瞄视觉框架。纯 C++17,无 ROS 依赖,面向无头 Linux 部�
 
 四层单向依赖,`apps -> modules -> hardware -> tools`:
 
-| 层 | 职责 |
-|---|---|
-| `apps` | 应用层(composition root):每个兵种一个可执行文件,单线程编排取图 → 检测 → 跟踪 → 决策 → 发送,并负责本兵种的配置与报文协议 |
-| `modules` | 算法层:`detector`(装甲板检测)/ `track`(跟踪估计)/ `shoot`(瞄准开火决策) |
-| `hardware` | 硬件层:`camera`(取图)/ `transport`(原始字节收发)/ `message`(命令与回传) |
-| `tools` | 工具层:`config` / `time` / `queue` / `exiter` 等无业务依赖的基础件,以及可选的远程调试 `debug` |
-
-项目采用**自顶向下**构建:先落地 `apps` 层并明确它需要的接口,再按需求逐层实现下层。
 
 ## 目录结构
 
@@ -30,14 +22,15 @@ RoboMaster 自瞄视觉框架。纯 C++17,无 ROS 依赖,面向无头 Linux 部�
 ├── 3rdparty/                    # 随仓库携带的第三方依赖
 ├── docs/
 │   └── build.md                 # 开发环境与构建文档
+├── docker/                      # 发行版(Ubuntu 22.04 / Debian 13)开发镜像
 ├── scripts/
-│   ├── build_opencv.sh          # 从源码构建 OpenCV 4.10(Ubuntu / Debian / Fedora)
+│   ├── build_opencv.sh          # 构建 OpenCV 4.10(Ubuntu / Debian / Fedora)
 │   └── lint.sh                  # 格式化 + clang-tidy + cppcheck
 ├── tools/                       # 工具层
+│   ├── config/                  # config,YAML 配置解析(yaml-cpp)
 │   └── debug/                   # debug,远程调试
 └── apps/                        # 应用层
-    ├── infantry/{main.cpp, config.yaml}   # 当前唯一示例实现
-    └── templates/               # 新兵种脚手架(hero/sentry/dart 待按此创建)
+    └── templates/               # 新兵种示例
 ```
 
 ## 快速开始
@@ -57,8 +50,6 @@ cmake --build build -j4
 ctest --test-dir build --output-on-failure   # ctest 测试
 ./build/apps/infantry
 ```
-
-当前为应用层骨架:`main()` 只保留顶层流程注释,可正常编译运行;下层就位后成为常驻主循环。
 
 ## 扩展指南
 
@@ -84,7 +75,8 @@ cppcheck --project=build/compile_commands.json
 
 ## 配置格式
 
-当前为扁平 `key: value`,以 `#` 开头为注释。示例:
+当前为扁平 `key: value`,以 `#` 开头为注释。解析由 `tools/config` 完成,底层用 yaml-cpp
+(apt 包 `libyaml-cpp-dev`,Ubuntu 22.04 与 Debian 13 均提供)。示例:
 
 ```yaml
 camera.type: null
