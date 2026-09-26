@@ -3,6 +3,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
 
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -92,8 +93,9 @@ inline bool parse_address(const std::string & address, std::string & host, uint1
 }
 
 // 用一次「非阻塞 TCP 连接」判断 Viewer 是否在线。
-// Rerun 的 gRPC sink 在连不上时会等待约 5 秒,并且进程退出时可能卡在关闭阶段。机器人主循环不能接受这种阻塞,
-// 所以先快速探一下(默认 300ms);探不到就直接不启用调试。
+// Rerun 的 gRPC sink 在连不上时会等待约 5
+// 秒,并且进程退出时可能卡在关闭阶段。机器人主循环不能接受这种阻塞, 所以先快速探一下(默认
+// 300ms);探不到就直接不启用调试。
 inline bool viewer_online(const std::string & address, int timeout_ms = 300)
 {
   std::string host;
@@ -155,7 +157,6 @@ inline bool viewer_online(const std::string & address, int timeout_ms = 300)
 } // namespace detail
 #endif // RM_DEBUG
 
-
 // Sink:调试数据出口。一个进程通常只建一个,生命周期覆盖整个主循环。
 class Sink
 {
@@ -199,6 +200,21 @@ public:
 #endif
   }
 
+  // 设置时间轴为「从采集起点到当前帧的时长」,配合相机时间戳实现按真实时间回放。
+  void set_time(const std::string & timeline, std::chrono::nanoseconds since_start)
+  {
+#if defined(RM_DEBUG)
+    if (!active_)
+    {
+      return;
+    }
+    stream_->set_time_duration(timeline, since_start);
+#else
+    (void)timeline;
+    (void)since_start;
+#endif
+  }
+
   // 发送一张图像。bgr 是 OpenCV 默认的 BGR 图,内部会 JPEG 压缩后再发,避免占满带宽。
   // 本函数只做编码与发送，jpeg_quality 取值范围 0~100,画质 / 带宽的折中。
   void image(const std::string & path, const cv::Mat & bgr, int jpeg_quality = 80)
@@ -237,8 +253,8 @@ public:
 #endif
   }
 
-  // 发送多分量数据(如 IMU 四元数、EKF 状态向量)。第 i 个分量记到 <path>/<names[i]>,这样在 Viewer 里形成可展开的层级
-  // values 与 names 必须等长,否则整次调用跳过。
+  // 发送多分量数据(如 IMU 四元数、EKF 状态向量)。第 i 个分量记到 <path>/<names[i]>,这样在 Viewer
+  // 里形成可展开的层级 values 与 names 必须等长,否则整次调用跳过。
   void data(const std::string & path, const std::vector<double> & values,
             const std::vector<std::string> & names)
   {

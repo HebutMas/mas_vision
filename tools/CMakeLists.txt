@@ -10,6 +10,24 @@ target_link_libraries(config_test PRIVATE tools)
 
 add_test(NAME config COMMAND config_test)
 
+# 统一时间基准:所有硬件共用同一单调时钟,测试其稳定性 / 单调性。
+add_executable(time_test time/test.cpp)
+target_link_libraries(time_test PRIVATE tools)
+
+add_test(NAME time COMMAND time_test)
+
+# 最新帧槽:验证覆盖 / 阻塞唤醒 / close 语义。
+add_executable(latest_frame_test latest_frame/test.cpp)
+target_link_libraries(latest_frame_test PRIVATE tools)
+
+add_test(NAME latest_frame COMMAND latest_frame_test)
+
+# 退出信号:验证 SIGINT 置位退出标志。
+add_executable(exiter_test exiter/test.cpp)
+target_link_libraries(exiter_test PRIVATE tools)
+
+add_test(NAME exiter COMMAND exiter_test)
+
 if(RM_DEBUG)
   target_compile_definitions(tools INTERFACE RM_DEBUG)
   target_link_libraries(tools INTERFACE rerun_sdk)
