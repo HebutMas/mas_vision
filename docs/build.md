@@ -9,6 +9,7 @@
 | GCC / G++ | >= 11 | apt 安装即可 |
 | yaml-cpp | >= 0.7 | 配置解析用,apt 安装即可|
 | OpenCV | = 4.10.0 | 使用 scripts/build_opencv.sh 脚本安装  |
+| MVS SDK | 5.1 | 海康相机驱动必需,需手动安装(见下) |
 | Rerun SDK(可选) | 0.38.1 | `set(RM_DEBUG ON)` 时需要 |
 
 ## 安装构建工具
@@ -22,6 +23,19 @@ sudo apt-get install -y \
   pkg-config \
   libyaml-cpp-dev
 ```
+
+## 安装 MVS SDK
+
+构建前需先安装。仓库 `3rdparty/` 内附有安装包:
+
+```bash
+tar xzf 3rdparty/MVS-*.tar.gz -C /tmp
+cd /tmp/MVS-*/
+sudo ./setup.sh
+```
+
+默认安装到 `/opt/MVS` 并注册动态库路径。若安装到其它位置,配置时用
+`-DMVCAM_SDK_PATH=<SDK 根目录>` 指定。
 
 ## 从源码构建 OpenCV 4.10
 > 仓库 `scripts/` 下提供 `build_opencv.sh`,会自动安装编译依赖
@@ -75,7 +89,7 @@ set(APPS infantry)
 ./scripts/lint.sh
 
 # 或分别执行
-find tools apps \( -name '*.hpp' -o -name '*.cpp' \) -print0 | xargs -0 clang-format --dry-run --Werror  # 格式检查
+find tools hardware apps \( -name '*.hpp' -o -name '*.cpp' \) -print0 | xargs -0 clang-format --dry-run --Werror  # 格式检查
 run-clang-tidy -p build -quiet          # Clang AST 语义检查
 cppcheck --project=build/compile_commands.json  # 独立解析,缺陷类检查
 ```
@@ -130,3 +144,4 @@ journalctl -u rm-vision -f
 - **CMake 找不到 OpenCV**:确认 `pkg-config --modversion opencv4` 有输出;若安装在 `/usr/local`,用 `-DOpenCV_DIR=...` 指定。
 - **运行时找不到 `libopencv_core.so.4.10`**:使用 `scripts/build_opencv.sh --register-ldconfig`,或手动把库目录加入 `/etc/ld.so.conf.d/` 后执行 `sudo ldconfig`。
 - **CMake 4.x 报 `cmake_minimum_required` 兼容性错误**:仅影响从源码构建 OpenCV 的场景,脚本已处理;本项目自身 `cmake_minimum_required(VERSION 3.16)` 无此问题。
+- **配置报错找不到 MVS SDK**: 默认查找 `/opt/MVS`,也可用 `-DMVCAM_SDK_PATH=<SDK 根目录>` 指定安装路径。

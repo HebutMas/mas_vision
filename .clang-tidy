@@ -48,6 +48,6 @@ CheckOptions:
     value: 1
 
 WarningsAsErrors: ""
-HeaderFilterRegex: '^(tools|apps)/.*'
+HeaderFilterRegex: '^(tools|hardware|apps)/.*'
 FormatStyle: file
 ...

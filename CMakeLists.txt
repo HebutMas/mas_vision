@@ -103,4 +103,5 @@ if(RM_DEBUG)
 endif()
 
 add_subdirectory(tools)
+add_subdirectory(hardware)
 add_subdirectory(apps)

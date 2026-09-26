@@ -19,7 +19,7 @@ RoboMaster 自瞄视觉框架。纯 C++17,无 ROS 依赖,面向无头 Linux 部�
 ```
 .
 ├── CMakeLists.txt
-├── 3rdparty/                    # 随仓库携带的第三方依赖
+├── 3rdparty/                    # 随仓库携带的第三方依赖(MVS SDK、Rerun/Arrow 等)
 ├── docs/
 │   └── build.md                 # 开发环境与构建文档
 ├── docker/                      # 发行版(Ubuntu 22.04 / Debian 13)开发镜像
@@ -28,14 +28,19 @@ RoboMaster 自瞄视觉框架。纯 C++17,无 ROS 依赖,面向无头 Linux 部�
 │   └── lint.sh                  # 格式化 + clang-tidy + cppcheck
 ├── tools/                       # 工具层
 │   ├── config/                  # config,YAML 配置解析(yaml-cpp)
+│   ├── time/                    # time,统一时间基准
+│   ├── latest_frame/            # latest_frame
+│   ├── exiter/                  # exiter,SIGINT/SIGTERM 退出标志
 │   └── debug/                   # debug,远程调试
+├── hardware/                    # 硬件层
+│   └── hikcamera/               # hikcamera,海康 USB3.0 相机驱动
 └── apps/                        # 应用层
     └── templates/               # 新兵种示例
 ```
 
 ## 快速开始
 
-构建依赖与 OpenCV 的准备见 [`docs/build.md`](docs/build.md)。
+构建依赖见 [`docs/build.md`](docs/build.md)。
 
 编译哪些兵种由根 `CMakeLists.txt` 中的 `set(APPS ...)` 决定,改哪个编哪个:
 
@@ -75,8 +80,7 @@ cppcheck --project=build/compile_commands.json
 
 ## 配置格式
 
-当前为扁平 `key: value`,以 `#` 开头为注释。解析由 `tools/config` 完成,底层用 yaml-cpp
-(apt 包 `libyaml-cpp-dev`,Ubuntu 22.04 与 Debian 13 均提供)。示例:
+当前为扁平 `key: value`,以 `#` 开头为注释。示例:
 
 ```yaml
 camera.type: null
