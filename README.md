@@ -33,7 +33,8 @@ RoboMaster 自瞄视觉框架。纯 C++17,无 ROS 依赖,面向无头 Linux 部�
 │   ├── exiter/                  # exiter,SIGINT/SIGTERM 退出标志
 │   └── debug/                   # debug,远程调试
 ├── hardware/                    # 硬件层
-│   └── hikcamera/               # hikcamera,海康 USB3.0 相机驱动
+│   ├── hikcamera/               # hikcamera,海康 USB3.0 相机驱动
+│   └── usbcamera/               # usbcamera,USB(UVC)相机驱动
 └── apps/                        # 应用层
     └── templates/               # 新兵种示例
 ```

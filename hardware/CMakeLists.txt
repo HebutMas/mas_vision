@@ -39,3 +39,15 @@ target_link_libraries(hikcamera_test PRIVATE hardware tools)
 add_test(NAME hikcamera COMMAND hikcamera_test)
 # 无相机 / 无 Viewer 时测试直接结束;RM_DEBUG 且 Viewer 在线时会连续发送 5s
 set_tests_properties(hikcamera PROPERTIES TIMEOUT 60)
+
+# USB(UVC)相机驱动:走 OpenCV 的 V4L2 后端
+add_library(usbcamera STATIC usbcamera/usbcamera.cpp)
+target_link_libraries(usbcamera PUBLIC ${OpenCV_LIBS})
+target_link_libraries(hardware INTERFACE usbcamera)
+
+# 测试:无相机时失败,有相机时抓一帧;RM_DEBUG 下顺带把画面送 Rerun。
+add_executable(usbcamera_test usbcamera/test.cpp)
+target_link_libraries(usbcamera_test PRIVATE hardware tools)
+
+add_test(NAME usbcamera COMMAND usbcamera_test)
+set_tests_properties(usbcamera PROPERTIES TIMEOUT 60)
