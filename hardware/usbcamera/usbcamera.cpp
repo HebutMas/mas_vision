@@ -11,95 +11,104 @@ namespace
 {
 // V4L2 只保留最新帧,给取图留 1 帧缓冲。
 constexpr int BUFFER_SIZE = 1;
+// OpenCV V4L2 后端约定:CAP_PROP_AUTO_EXPOSURE 用 0.25=手动、0.75=自动。
+constexpr double EXPOSURE_MANUAL = 0.25;
+constexpr double EXPOSURE_AUTO   = 0.75;
 
-// "MJPG" -> FourCC 整数。
-int to_fourcc(const std::string & text)
+// "MJPG" -> OpenCV 的四字节 FourCC 整数。
+int to_fourcc(const std::string &code)
 {
-  if (text.size() != 4)
-  {
-    throw std::invalid_argument("UsbCamera fourcc 必须是 4 个字符,当前为 \"" + text + "\"");
-  }
-  return cv::VideoWriter::fourcc(text[0], text[1], text[2], text[3]);
+    if (code.size() != 4)
+    {
+        return 0;
+    }
+    return cv::VideoWriter::fourcc(code[0], code[1], code[2], code[3]);
 }
 } // namespace
 
 UsbCamera::UsbCamera(UsbCameraConfig config) : config_(std::move(config))
 {
-  open();
-  thread_ = std::thread(&UsbCamera::run, this);
+    open();
+    thread_ = std::thread(&UsbCamera::run, this);
 }
 
 UsbCamera::~UsbCamera()
 {
-  quit_ = true;
-  frames_.close();
-  if (thread_.joinable())
-  {
-    thread_.join();
-  }
-  close();
+    quit_ = true;
+    frames_.close();
+    if (thread_.joinable())
+    {
+        thread_.join();
+    }
+    close();
 }
 
-bool UsbCamera::is_open() const noexcept
-{
-  return capture_.isOpened();
-}
+bool UsbCamera::is_open() const noexcept { return capture_.isOpened(); }
 
 void UsbCamera::open()
 {
-  // 固定 V4L2 后端,避免 OpenCV 回退到 GStreamer 带来的不确定性。
-  if (!capture_.open(config_.device_index, cv::CAP_V4L2))
-  {
-    throw std::runtime_error("UsbCamera 无法打开 /dev/video" +
-                             std::to_string(config_.device_index));
-  }
-  configure();
+    // 固定 V4L2 后端,避免 OpenCV 回退到 GStreamer 带来的不确定性。
+    if (!capture_.open(config_.device_path, cv::CAP_V4L2))
+    {
+        throw std::runtime_error("UsbCamera 无法打开 " + config_.device_path);
+    }
+    configure();
 }
 
 void UsbCamera::configure()
 {
-  if (config_.width > 0)
-  {
-    capture_.set(cv::CAP_PROP_FRAME_WIDTH, config_.width);
-  }
-  if (config_.height > 0)
-  {
-    capture_.set(cv::CAP_PROP_FRAME_HEIGHT, config_.height);
-  }
-  if (config_.frame_rate > 0.0)
-  {
-    capture_.set(cv::CAP_PROP_FPS, config_.frame_rate);
-  }
-  if (!config_.fourcc.empty())
-  {
-    capture_.set(cv::CAP_PROP_FOURCC, to_fourcc(config_.fourcc));
-  }
-  capture_.set(cv::CAP_PROP_BUFFERSIZE, BUFFER_SIZE);
+    if (config_.width > 0)
+    {
+        capture_.set(cv::CAP_PROP_FRAME_WIDTH, config_.width);
+    }
+    if (config_.height > 0)
+    {
+        capture_.set(cv::CAP_PROP_FRAME_HEIGHT, config_.height);
+    }
+    if (config_.fps > 0)
+    {
+        capture_.set(cv::CAP_PROP_FPS, config_.fps);
+    }
+    // 像素格式:USB2 上跑高分辨率 / 高帧率通常需要 MJPG。
+    const int fourcc = to_fourcc(config_.fourcc);
+    if (fourcc != 0)
+    {
+        capture_.set(cv::CAP_PROP_FOURCC, fourcc);
+    }
+    // 曝光:0=自动,1=手动;手动模式下再设曝光值与增益。
+    capture_.set(cv::CAP_PROP_AUTO_EXPOSURE, config_.auto_exposure == 0 ? EXPOSURE_AUTO : EXPOSURE_MANUAL);
+    if (config_.auto_exposure != 0)
+    {
+        capture_.set(cv::CAP_PROP_EXPOSURE, config_.exposure);
+        capture_.set(cv::CAP_PROP_GAIN, config_.gain);
+    }
+    capture_.set(cv::CAP_PROP_AUTO_WB, config_.auto_wb != 0 ? 1.0 : 0.0);
+    capture_.set(cv::CAP_PROP_BUFFERSIZE, BUFFER_SIZE);
 }
 
 void UsbCamera::close() noexcept
 {
-  if (capture_.isOpened())
-  {
-    capture_.release();
-  }
+    if (capture_.isOpened())
+    {
+        capture_.release();
+    }
 }
 
 void UsbCamera::run()
 {
-  cv::Mat image;
-  while (!quit_)
-  {
-    // read 返回后立即记录出流时刻。
-    if (!capture_.read(image) || image.empty())
+    cv::Mat image;
+    while (!quit_)
     {
-      // 掉帧或设备异常:退避后重试,避免空转。
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
-      continue;
+        // read 返回后立即记录出流时刻。
+        if (!capture_.read(image) || image.empty())
+        {
+            // 掉帧或设备异常:退避后重试,避免空转。
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            continue;
+        }
+        const TimePoint stamp = tools::time::now();
+        frames_.push(UsbFrame{image.clone(), stamp});
     }
-    const TimePoint stamp = tools::time::now();
-    frames_.push(UsbFrame{image.clone(), stamp});
-  }
 }
 
 } // namespace hardware::usbcamera
