@@ -5,6 +5,9 @@ target_include_directories(tools INTERFACE ${PROJECT_SOURCE_DIR})
 # 配置解析:YAML 由 yaml-cpp 提供
 target_link_libraries(tools INTERFACE ${RM_YAML_CPP_TARGET})
 
+# 链接Eigen。
+target_link_libraries(tools INTERFACE Eigen3::Eigen)
+
 add_executable(config_test config/test.cpp)
 target_link_libraries(config_test PRIVATE tools)
 
@@ -21,6 +24,12 @@ add_executable(latest_frame_test latest_frame/test.cpp)
 target_link_libraries(latest_frame_test PRIVATE tools)
 
 add_test(NAME latest_frame COMMAND latest_frame_test)
+
+# 算法:CRC16 测试向量 + 四元数插值缓冲(需 Eigen)。
+add_executable(algorithm_test algorithm/test.cpp)
+target_link_libraries(algorithm_test PRIVATE tools)
+
+add_test(NAME algorithm COMMAND algorithm_test)
 
 # 退出信号:验证 SIGINT 置位退出标志。
 add_executable(exiter_test exiter/test.cpp)

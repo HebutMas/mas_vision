@@ -1,6 +1,30 @@
 # 新兵种配置模板:复制到 apps/<new>/config.yaml 后按需修改。
-camera.type: null
-transport.type: null
-detector.algorithm: null
-track.algorithm: null
-shoot.algorithm: null
+serial:
+  debug: false
+  port: /dev/gimbal
+  baudrate: 115200
+  bytesize: 8
+  parity: none
+  stopbits: 1
+  flowcontrol: none
+  timestamp_offset: 0.0
+hikcamera:
+  serial: ""
+  exposure_us: 3000
+  gain_db: 0
+usbcamera:
+  device_path: /dev/video0
+  width: 1280
+  height: 720
+  fps: 30
+  fourcc: MJPG
+  auto_exposure: 1
+  exposure: 50
+  gain: 20
+  auto_wb: 0
+detector:
+  algorithm: null
+track:
+  algorithm: null
+shoot:
+  algorithm: null

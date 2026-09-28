@@ -26,6 +26,35 @@ else()
   set(RM_YAML_CPP_TARGET yaml-cpp)
 endif()
 
+# Eigen:优先用系统安装，缺失时自动解压仓库内 3rdparty 的源码包
+find_package(Eigen3 CONFIG QUIET)
+if(NOT TARGET Eigen3::Eigen)
+  set(RM_EIGEN_TARBALL "${PROJECT_SOURCE_DIR}/3rdparty/eigen-3.4.0.tar.gz"
+      CACHE FILEPATH "Local Eigen 3.4.0 source tarball (optional)")
+  set(RM_EIGEN_MD5 4c527a9171d71a72a9d4186e65bea559)
+  set(_eigen_root "${CMAKE_BINARY_DIR}/_deps/eigen-src/eigen-3.4.0")
+  if(NOT EXISTS "${_eigen_root}/Eigen/Core")
+    if(NOT EXISTS "${RM_EIGEN_TARBALL}")
+      message(FATAL_ERROR "未找到 Eigen:请安装 libeigen3-dev / eigen3-devel,"
+                          "或用 -DRM_EIGEN_TARBALL=<eigen 源码包> 指定")
+    endif()
+    file(MD5 "${RM_EIGEN_TARBALL}" _eigen_hash)
+    if(NOT "${_eigen_hash}" STREQUAL "${RM_EIGEN_MD5}")
+      message(FATAL_ERROR "Eigen 源码包校验失败:${RM_EIGEN_TARBALL}")
+    endif()
+    message(STATUS "Extracting Eigen from ${RM_EIGEN_TARBALL}")
+    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/_deps/eigen-src")
+    execute_process(COMMAND ${CMAKE_COMMAND} -E tar xzf "${RM_EIGEN_TARBALL}"
+                    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/_deps/eigen-src"
+                    RESULT_VARIABLE _eigen_rc)
+    if(NOT _eigen_rc EQUAL 0)
+      message(FATAL_ERROR "解压 Eigen 失败(${_eigen_rc}):${RM_EIGEN_TARBALL}")
+    endif()
+  endif()
+  add_library(Eigen3::Eigen INTERFACE IMPORTED)
+  target_include_directories(Eigen3::Eigen INTERFACE "${_eigen_root}")
+endif()
+
 include_directories(${PROJECT_SOURCE_DIR})
 
 enable_testing()

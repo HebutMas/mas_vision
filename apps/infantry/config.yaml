@@ -1,5 +1,29 @@
-camera.type: null
-transport.type: null
-detector.algorithm: null
-track.algorithm: null
-shoot.algorithm: null
+serial:
+  debug: false # 打印连接 / 断开日志
+  port: /dev/ttyACM0
+  baudrate: 115200
+  bytesize: 8 # 5/6/7/8
+  parity: none # none/even/odd
+  stopbits: 1 # 1/2
+  flowcontrol: none # none/rtscts
+  timestamp_offset: 0.0
+hikcamera:
+  serial: "" # 留空则用枚举到的第一台
+  exposure_us: 5000
+  gain_db: 10
+usbcamera:
+  device_path: /dev/video0
+  width: 1280
+  height: 720
+  fps: 30
+  fourcc: MJPG # MJPG/YUYV
+  auto_exposure: 1 # 0=自动,1=手动
+  exposure: 50 # 仅手动模式
+  gain: 20 # 仅手动模式
+  auto_wb: 0 # 0=禁用,1=启用
+detector:
+  algorithm: null
+track:
+  algorithm: null
+shoot:
+  algorithm: null

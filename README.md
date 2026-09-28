@@ -27,6 +27,7 @@ RoboMaster 自瞄视觉框架。纯 C++17,无 ROS 依赖,面向无头 Linux 部�
 │   ├── build_opencv.sh          # 构建 OpenCV 4.10(Ubuntu / Debian / Fedora)
 │   └── lint.sh                  # 格式化 + clang-tidy + cppcheck
 ├── tools/                       # 工具层
+│   ├── algorithm/               # algorithm
 │   ├── config/                  # config,YAML 配置解析(yaml-cpp)
 │   ├── time/                    # time,统一时间基准
 │   ├── latest_frame/            # latest_frame
@@ -34,7 +35,8 @@ RoboMaster 自瞄视觉框架。纯 C++17,无 ROS 依赖,面向无头 Linux 部�
 │   └── debug/                   # debug,远程调试
 ├── hardware/                    # 硬件层
 │   ├── hikcamera/               # hikcamera,海康 USB3.0 相机驱动
-│   └── usbcamera/               # usbcamera,USB(UVC)相机驱动
+│   ├── usbcamera/               # usbcamera,USB(UVC)相机驱动
+│   └── serialport/              # serialport
 └── apps/                        # 应用层
     └── templates/               # 新兵种示例
 ```
@@ -61,7 +63,7 @@ ctest --test-dir build --output-on-failure   # ctest 测试
 
 ### 新增一个兵种
 
-从 `apps/templates/` 复制为 `apps/<new>/`,按该兵种下位机协议实现报文编解码与配置,然后把名字加入根 `CMakeLists.txt` 的 `set(APPS ...)` 与 `apps/CMakeLists.txt` 的 `KNOWN_APPS`。可参考 `apps/infantry/`。
+从 `apps/templates/` 复制为 `apps/<new>/`,然后把名字加入根 `CMakeLists.txt` 的 `set(APPS ...)` 与 `apps/CMakeLists.txt` 的 `KNOWN_APPS`。可参考 `apps/infantry/`。
 
 ## 远程调试
 通过网线把图像、检测框、跟踪状态和决策量实时推送到开发机的[Rerun](https://rerun.io) Viewer。
@@ -80,15 +82,36 @@ cppcheck --project=build/compile_commands.json
 ```
 
 ## 配置格式
-
-当前为扁平 `key: value`,以 `#` 开头为注释。示例:
-
 ```yaml
-camera.type: null
-transport.type: null
-detector.algorithm: null
-track.algorithm: null
-shoot.algorithm: null
+serial:
+  debug: false      # 打印连接 / 断开日志
+  port: /dev/gimbal
+  baudrate: 115200
+  bytesize: 8       # 5/6/7/8
+  parity: none      # none/even/odd
+  stopbits: 1       # 1/2
+  flowcontrol: none # none/rtscts
+  timestamp_offset: 0.0 # IMU 时间戳偏移(秒):到达时刻 + offset
+usbcamera:
+  device_path: /dev/video0
+  width: 1280
+  height: 720
+  fps: 30
+  fourcc: MJPG      # MJPG/YUYV
+  auto_exposure: 1  # 0=自动,1=手动
+  exposure: 50
+  gain: 20
+  auto_wb: 0        # 0=禁用,1=启用
+hikcamera:
+  serial: ""
+  exposure_us: 3000
+  gain_db: 0
+detector:
+  algorithm: null
+track:
+  algorithm: null
+shoot:
+  algorithm: null
 ```
 
 ## 参考项目

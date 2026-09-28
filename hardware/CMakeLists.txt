@@ -27,7 +27,7 @@ endif()
 
 add_library(hikcamera STATIC hikcamera/hikcamera.cpp)
 target_include_directories(hikcamera PUBLIC ${MVS_INCLUDE_DIR})
-target_link_libraries(hikcamera PUBLIC ${OpenCV_LIBS} ${MVS_LIBRARIES})
+target_link_libraries(hikcamera PUBLIC ${OpenCV_LIBS} ${MVS_LIBRARIES} tools)
 target_link_libraries(hardware INTERFACE hikcamera)
 # SDK 动态库不在系统默认搜索路径时,给可执行文件写死 rpath 保证运行时找到。
 target_link_options(hikcamera PUBLIC "-Wl,-rpath,${MVS_LIBRARY_DIRS}")
@@ -42,7 +42,7 @@ set_tests_properties(hikcamera PROPERTIES TIMEOUT 60)
 
 # USB(UVC)相机驱动:走 OpenCV 的 V4L2 后端
 add_library(usbcamera STATIC usbcamera/usbcamera.cpp)
-target_link_libraries(usbcamera PUBLIC ${OpenCV_LIBS})
+target_link_libraries(usbcamera PUBLIC ${OpenCV_LIBS} tools)
 target_link_libraries(hardware INTERFACE usbcamera)
 
 # 测试:无相机时失败,有相机时抓一帧;RM_DEBUG 下顺带把画面送 Rerun。
@@ -51,3 +51,16 @@ target_link_libraries(usbcamera_test PRIVATE hardware tools)
 
 add_test(NAME usbcamera COMMAND usbcamera_test)
 set_tests_properties(usbcamera PROPERTIES TIMEOUT 60)
+
+# 串口通信:定长帧 + CRC16,协议与收发结构体都在本模块(serialtypes.hpp);
+# 引擎与具体协议实现编译进 libserialport.a。
+add_library(serialport STATIC serialport/serialport.cpp)
+target_link_libraries(serialport PUBLIC tools)
+target_link_libraries(hardware INTERFACE serialport)
+
+# 测试:用伪终端回环,不依赖真实硬件。
+add_executable(serialport_test serialport/test.cpp)
+target_link_libraries(serialport_test PRIVATE hardware tools util)
+
+add_test(NAME serialport COMMAND serialport_test)
+set_tests_properties(serialport PROPERTIES TIMEOUT 30)

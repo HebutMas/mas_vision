@@ -8,6 +8,7 @@
 | Ninja | 任意 | apt 安装即可  |
 | GCC / G++ | >= 11 | apt 安装即可 |
 | yaml-cpp | >= 0.7 | 配置解析用,apt 安装即可|
+| Eigen | >= 3.4 | 四元数 slerp 插值;apt安装,或用仓库内 `3rdparty/eigen-3.4.0.tar.gz` |
 | OpenCV | = 4.10.0 | 使用 scripts/build_opencv.sh 脚本安装  |
 | MVS SDK | 5.1 | 海康相机驱动必需,需手动安装(见下) |
 | Rerun SDK(可选) | 0.38.1 | `set(RM_DEBUG ON)` 时需要 |
@@ -21,7 +22,8 @@ sudo apt-get install -y \
   ninja-build \
   git \
   pkg-config \
-  libyaml-cpp-dev
+  libyaml-cpp-dev \
+  libeigen3-dev
 ```
 
 ## 安装 MVS SDK
