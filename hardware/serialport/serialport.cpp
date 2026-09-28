@@ -186,10 +186,6 @@ bool SerialPort::open() noexcept
     rx_len_ = 0;     // 丢弃上一条链路的半帧。
     frames_.clear(); // 新连接:丢弃旧链路的收帧与姿态历史。
     imu_.clear();
-    if (config_.debug)
-    {
-        std::fprintf(stderr, "serial: %s connected\n", config_.port.c_str());
-    }
     return true;
 }
 
@@ -225,10 +221,6 @@ void SerialPort::disconnect_locked() noexcept
     if (fd >= 0)
     {
         ::close(fd);
-        if (config_.debug)
-        {
-            std::fprintf(stderr, "serial: %s disconnected; reconnect in %d s\n", config_.port.c_str(), RECONNECT_INTERVAL_MS / 1000);
-        }
     }
 }
 
@@ -301,6 +293,17 @@ bool SerialPort::serialread()
     if (n < 0)
     {
         return errno == EAGAIN || errno == EINTR || errno == EWOULDBLOCK;
+    }
+
+    if (config_.debug && n > 0)
+    {
+        // 打印本次收到的原始字节,便于定位帧头 / CRC 问题。
+        std::fprintf(stderr, "serial rx:");
+        for (ssize_t i = 0; i < n; ++i)
+        {
+            std::fprintf(stderr, " %02X", buffer[i]);
+        }
+        std::fputc('\n', stderr);
     }
 
     for (ssize_t i = 0; i < n; ++i)

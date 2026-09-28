@@ -84,7 +84,7 @@ cppcheck --project=build/compile_commands.json
 ## 配置格式
 ```yaml
 serial:
-  debug: false      # 打印连接 / 断开日志
+  debug: false      # 打印接收的 16 进制原始数据
   port: /dev/gimbal
   baudrate: 115200
   bytesize: 8       # 5/6/7/8

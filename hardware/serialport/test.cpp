@@ -30,12 +30,14 @@ void check(bool ok, const char *what)
 }
 
 // 写一份最小可用的 serial 配置(指定端口),返回文件路径。
-std::filesystem::path write_serial_yaml(const std::string &port)
+std::filesystem::path write_serial_yaml(const std::string &port, bool debug = false)
 {
     const auto    path = std::filesystem::temp_directory_path() / "rm_vision_serialport_port.yaml";
     std::ofstream out(path);
     out << "serial:\n"
-           "  debug: false\n"
+           "  debug: "
+        << (debug ? "true" : "false")
+        << "\n"
            "  port: "
         << port
         << "\n"
@@ -62,7 +64,7 @@ int main()
     check(::openpty(&master, &slave, name, nullptr, nullptr) == 0, "openpty");
     ::close(slave); // SerialPort 自己打开。
 
-    const auto port_path = write_serial_yaml(name);
+    const auto port_path = write_serial_yaml(name, true); // debug 打开:回显收到的 16 进制原始数据。
     SerialPort serialport(tools::config::Config(port_path.string()));
 
     // 上行:帧前塞噪声(含假帧头),SerialPort 应校验并重同步解出。

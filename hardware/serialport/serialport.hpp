@@ -24,7 +24,7 @@ namespace hardware::serialport
 // 串口连接参数
 struct SerialConfig
 {
-    bool        debug{false};          // 是否打印连接 / 断开日志。
+    bool        debug{false};          // 是否打印接收的 16 进制原始数据(排查用)。
     std::string port{"/dev/gimbal"};   // 设备路径。
     int         baudrate{115200};      // 波特率。
     int         bytesize{8};           // 数据位:5 / 6 / 7 / 8。

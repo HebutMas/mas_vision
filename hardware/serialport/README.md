@@ -58,7 +58,7 @@ serial:
 
 | 键 | 默认 | 说明 |
 |---|---|---|
-| `serial.debug` | `false` | 是否打印连接 / 断开日志 |
+| `serial.debug` | `false` | 是否打印接收的 16 进制原始数据 |
 | `serial.port` | `/dev/gimbal` | 串口设备路径 |
 | `serial.baudrate` | `115200` | 波特率,须在支持列表内 |
 | `serial.bytesize` | `8` | 数据位,5/6/7/8 |
