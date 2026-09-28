@@ -11,31 +11,58 @@ namespace tools::config
 // Config:一个 YAML 配置文件的只读视图。
 class Config
 {
-public:
-  // 加载失败(文件不存在 / YAML 语法错误)直接抛异常,让程序在启动阶段失败。
-  explicit Config(const std::string & path)
-  try : root_(YAML::LoadFile(path))
-  {
-  }
-  catch (const YAML::Exception & error)
-  {
-    throw std::runtime_error("加载配置失败 " + path + ": " + error.what());
-  }
-
-  // 按键取值;键不存在或值为 null 时返回 fallback。
-  template <typename T>
-  [[nodiscard]] T get(const std::string & key, const T & fallback) const
-  {
-    const YAML::Node node = root_[key];
-    if (!node || node.IsNull())
+  public:
+    // 加载失败直接抛异常,让程序在启动阶段失败。
+    explicit Config(const std::string &path)
+    try : root_(YAML::LoadFile(path)) {}
+    catch (const YAML::Exception &error)
     {
-      return fallback;
+        throw std::runtime_error("load config failed " + path + ": " + error.what());
     }
-    return node.as<T>();
-  }
 
-private:
-  YAML::Node root_;
+    // 按 `.` 路径取必填项(如 "serial.port")
+    template <typename T> [[nodiscard]] T require(const std::string &path) const
+    {
+        const YAML::Node node = find(path);
+        if (!node || node.IsNull())
+        {
+            throw std::runtime_error("Missing configuration items" + path);
+        }
+        try
+        {
+            return node.as<T>();
+        }
+        catch (const YAML::Exception &error)
+        {
+            throw std::runtime_error("Configuration item type error " + path + ": " + error.what());
+        }
+    }
+
+  private:
+    // 按 `.` 路径逐层下钻,返回命中的节点
+    [[nodiscard]] YAML::Node find(const std::string &path) const
+    {
+        YAML::Node  node  = root_;
+        std::size_t start = 0;
+        while (true)
+        {
+            const std::size_t dot = path.find('.', start);
+            // 用 reset 重新绑定到子节点
+            node.reset(node[path.substr(start, dot - start)]);
+            if (!node || node.IsNull())
+            {
+                return node;
+            }
+            if (dot == std::string::npos)
+            {
+                break;
+            }
+            start = dot + 1;
+        }
+        return node;
+    }
+
+    YAML::Node root_;
 };
 
 } // namespace tools::config
