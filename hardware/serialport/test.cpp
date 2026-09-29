@@ -5,6 +5,8 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -160,6 +162,46 @@ int main()
         check(!constructs(valid.substr(0, valid.find("baudrate")) + "baudrate: 12345\n"), "unsupported baudrate throws");
 
         std::filesystem::remove(path);
+    }
+
+    // === 真实串口(在伪终端模拟之后):默认 /dev/ttyACM0,RM_SERIAL_PORT 可覆盖,无设备则跳过。 ===
+    {
+        const char       *env  = std::getenv("RM_SERIAL_PORT");
+        const std::string port = env != nullptr ? env : "/dev/ttyACM0";
+        if (!std::filesystem::exists(port))
+        {
+            std::cout << "real serial skipped: " << port << " not present\n";
+        }
+        else
+        {
+            const auto hw_path = write_serial_yaml(port);
+            SerialPort hw(tools::config::Config(hw_path.string()));
+            check(hw.is_open(), "open real port");
+
+            const auto    start = std::chrono::steady_clock::now();
+            unsigned      count = 0;
+            ReceivePacket last{};
+            while (std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count() < 2.0)
+            {
+                ReceivePacket packet{};
+                if (hw.frames().wait_for(packet, std::chrono::milliseconds(5)))
+                {
+                    last = packet;
+                    ++count;
+                }
+            }
+            const double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+            std::printf("real serial rx %u frames in %.2fs = %.1f Hz\n", count, elapsed, static_cast<double>(count) / elapsed);
+
+            check(count > 0, "real rx frames");
+            check(std::fabs(last.quaternion().norm() - 1.0F) < 0.05F, "real rx quaternion near unit");
+            check(std::fabs(hw.quaternion_at(tools::time::now()).norm() - 1.0F) < 0.1F, "real imu buffer near unit");
+
+            // 下行:发一帧心跳后端口仍在,链路未被写坏。
+            hw.send(SendPacket{0.0F, 0.0F, 0});
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            check(hw.is_open(), "real still open after tx");
+        }
     }
 
     if (failures != 0)

@@ -24,9 +24,9 @@ bool near(float a, float b, float eps = 1e-4F) { return std::fabs(a - b) <= eps;
 
 int main()
 {
-    // CRC-16/CCITT-FALSE 标准测试向量。
+    // CRC-16/MCRF4XX 标准测试向量(poly 0x8408, init 0xFFFF, 反射)。
     const auto *data = reinterpret_cast<const std::uint8_t *>("123456789");
-    check(tools::crc16::checksum(data, 9) == 0x29B1, "crc16 known vector");
+    check(tools::crc16::checksum(data, 9) == 0x6F91, "crc16 known vector");
     check(tools::crc16::checksum(nullptr, 0) == 0xFFFF, "crc16 empty init");
 
     // 四元数缓冲:空 -> 单位;0 → 90°(绕 Z)的中点应为 45°;越界取端点。

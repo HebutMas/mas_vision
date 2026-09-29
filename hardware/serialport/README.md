@@ -9,7 +9,7 @@
 发:  0xA5 | SendPacket    | CRC16_lo | CRC16_hi
 ```
 
-- **CRC16**:CCITT-FALSE,poly `0x1021`,init `0xFFFF`,输入/输出不反转,xorout `0x0000`;校验范围为 header + payload。
+- **CRC16**:poly `0x8408`,init `0xFFFF`,输入/输出反转,xorout `0x0000`;与下位机 `crc_rm.c` 一致;校验范围为 header + payload。
 - **帧头**区分方向:电控 → 视觉为 `0x5A`,视觉 → 电控为 `0xA5`。
 
 帧长公式:`FRAME_RX_SIZE = 1 + sizeof(ReceivePacket) + 2`,`FRAME_TX_SIZE = 1 + sizeof(SendPacket) + 2`。
@@ -124,7 +124,7 @@ target_link_libraries(serialport PUBLIC tools)
 target_link_libraries(hardware INTERFACE serialport)
 ```
 
-测试 `hardware/serialport/test.cpp` 用 **伪终端(`openpty`)回环**,覆盖组帧 / 解析 / 重同步 / 掉线检测 / 设备缺失(使用协议自带的 `ReceivePacket` / `SendPacket`):
+测试 `hardware/serialport/test.cpp` 先跑**伪终端(`openpty`)回环**(组帧 / 解析 / 重同步 / 掉线检测 / 设备缺失),再跑**真实串口**(默认 `/dev/ttyACM0`,`RM_SERIAL_PORT` 可覆盖;读帧率 + IMU 姿态 + 试发;无设备自动跳过):
 
 ```bash
 cmake --build build -j4
