@@ -167,7 +167,18 @@ ctest --test-dir build --output-on-failure
 ```
 
 ## 部署
-注册开机自启。以 systemd 服务:
+
+### 串口设备
+
+运行脚本,从列表里选一个设备,固定成 `/dev/gimbal` 
+
+```bash
+sudo scripts/serial_setup.sh
+```
+
+### 开机自启
+
+以 systemd 服务:
 
 ```ini
 # /etc/systemd/system/rm-vision.service

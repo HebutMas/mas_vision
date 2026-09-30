@@ -23,7 +23,8 @@ RoboMaster 自瞄视觉框架。纯 C++17,无 ROS 依赖,面向无头 Linux 部�
 │   └── build.md                 # 开发环境与构建文档
 ├── docker/                      # 发行版(Ubuntu 22.04 / Debian 13)开发镜像
 ├── scripts/
-│   └── lint.sh                  # 格式化 + clang-tidy + cppcheck
+│   ├── lint.sh                  # 格式化 + clang-tidy + cppcheck
+│   └── serial_setup.sh          # 串口 udev 规则
 ├── tools/                       # 工具层
 │   ├── algorithm/               # algorithm
 │   ├── config/                  # config,YAML 配置解析(yaml-cpp)

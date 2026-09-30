@@ -67,6 +67,8 @@ serial:
 | `serial.flowcontrol` | `none` | 流控,none/rtscts |
 | `serial.timestamp_offset` | `0.0` | IMU 姿态时间戳偏移(秒):到达时刻 + offset |
 
+> 跑一次 `sudo scripts/serial_setup.sh`将ttyACMX/ttyUSBX 固定成 `/dev/gimbal`
+
 ### main 里读取配置并注册
 
 ```cpp
