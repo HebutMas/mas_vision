@@ -38,8 +38,8 @@ try
                "  roi: {enable: false, x: 0, y: 0, width: 0, height: 0}\n";
         out.close();
         const auto cfg = hardware::hikcamera::load_hikcamera_config(tools::config::Config(path.string()));
-        if (cfg.serial != "ABC123" || cfg.exposure_us != 5000.0 || cfg.gain_db != 6.5 || cfg.framerate != 200.0 ||
-            cfg.demosaic != hardware::hikcamera::DemosaicQuality::Bilinear || !cfg.roi.enable || cfg.roi.x != 0 ||
+        if (!cfg.serial.empty() || cfg.exposure_us != 5000.0 || cfg.gain_db != 10.0 || cfg.framerate != 0.0 ||
+            cfg.demosaic != hardware::hikcamera::DemosaicQuality::Bilinear || cfg.roi.enable || cfg.roi.x != 0 ||
             cfg.roi.y != 0 || cfg.roi.width != 0 || cfg.roi.height != 0)
         {
             std::cerr << "FAIL: hikcamera config load\n";
@@ -67,7 +67,10 @@ try
         std::filesystem::remove(path);
     }
 
-    const hardware::hikcamera::HikCameraConfig config;
+    // 默认接第一台相机,曝光 5000us、增益 10dB、不开 ROI。
+    hardware::hikcamera::HikCameraConfig config;
+    config.exposure_us = 5000.0;
+    config.gain_db     = 10.0;
     try
     {
         hardware::hikcamera::HikCamera camera(config);

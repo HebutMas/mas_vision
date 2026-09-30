@@ -34,7 +34,7 @@ struct RoiConfig
     int  height{0};
 };
 
-// 海康相机配置,与 YAML `hikcamera` 段对应(serial/exposure_us/gain_db 必填,其余可选)。
+// 海康相机配置
 struct HikCameraConfig
 {
     // 相机序列号;留空则使用枚举到的第一台 USB 相机。
@@ -61,7 +61,7 @@ struct HikCameraConfig
 [[nodiscard]] inline HikCameraConfig load_hikcamera_config(const tools::config::Config &config)
 {
     HikCameraConfig cfg;
-    cfg.serial      = config.require<std::string>("hikcamera.serial");
+    cfg.serial      = config.value<std::string>("hikcamera.serial", "");
     cfg.exposure_us = config.require<double>("hikcamera.exposure_us");
     cfg.gain_db     = config.require<double>("hikcamera.gain_db");
     cfg.framerate   = config.value<double>("hikcamera.framerate", 0.0);
