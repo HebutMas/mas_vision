@@ -13,9 +13,28 @@
 namespace hardware::hikcamera
 {
 
-// 采集时刻的时间戳。
+// 采集时刻的时间戳
 using TimePoint = tools::time::TimePoint;
 
+// Bayer 去马赛克质量:bilinear 快;edge_aware 边缘自适应,质量高但更慢。
+enum class DemosaicQuality
+{
+    Bilinear,
+    EdgeAware,
+};
+
+// 相机侧裁切(ROI)
+// Bayer 格式要求 width / height 为偶数;width/height<=0 表示用整幅。
+struct RoiConfig
+{
+    bool enable{false};
+    int  x{0};
+    int  y{0};
+    int  width{0};
+    int  height{0};
+};
+
+// 海康相机配置,与 YAML `hikcamera` 段对应(serial/exposure_us/gain_db 必填,其余可选)。
 struct HikCameraConfig
 {
     // 相机序列号;留空则使用枚举到的第一台 USB 相机。
@@ -24,7 +43,19 @@ struct HikCameraConfig
     double exposure_us{3000.0};
     // 模拟增益(dB)。
     double gain_db{0.0};
+    // 目标帧率(fps);<=0 表示不限制,跑相机最大帧率。
+    double framerate{0.0};
+    // 相机侧裁切。
+    RoiConfig roi;
+    // 去马赛克质量。
+    DemosaicQuality demosaic{DemosaicQuality::EdgeAware};
 };
+
+// 把配置字符串转成去马赛克枚举;未知值回落到 edge_aware。
+[[nodiscard]] inline DemosaicQuality parse_demosaic(const std::string &name)
+{
+    return name == "bilinear" ? DemosaicQuality::Bilinear : DemosaicQuality::EdgeAware;
+}
 
 // 从配置读取海康相机参数。
 [[nodiscard]] inline HikCameraConfig load_hikcamera_config(const tools::config::Config &config)
@@ -33,6 +64,13 @@ struct HikCameraConfig
     cfg.serial      = config.require<std::string>("hikcamera.serial");
     cfg.exposure_us = config.require<double>("hikcamera.exposure_us");
     cfg.gain_db     = config.require<double>("hikcamera.gain_db");
+    cfg.framerate   = config.value<double>("hikcamera.framerate", 0.0);
+    cfg.roi.enable  = config.value<bool>("hikcamera.roi.enable", false);
+    cfg.roi.x       = config.value<int>("hikcamera.roi.x", 0);
+    cfg.roi.y       = config.value<int>("hikcamera.roi.y", 0);
+    cfg.roi.width   = config.value<int>("hikcamera.roi.width", 0);
+    cfg.roi.height  = config.value<int>("hikcamera.roi.height", 0);
+    cfg.demosaic    = parse_demosaic(config.value<std::string>("hikcamera.demosaic", "edge_aware"));
     return cfg;
 }
 

@@ -11,6 +11,14 @@ hikcamera:
   serial: "" # 留空则用枚举到的第一台
   exposure_us: 5000
   gain_db: 10
+  framerate: 0 # <=0:跑相机最大帧率
+  demosaic: edge_aware # bilinear/edge_aware
+  roi:
+    enable: false
+    x: 0
+    y: 0
+    width: 0 # <=0:整幅
+    height: 0 # <=0:整幅
 usbcamera:
   device_path: /dev/video0
   width: 1280

@@ -14,6 +14,8 @@
 int main(int argc, char **argv)
 try
 {
+    (void)argc;
+    (void)argv;
     // 配置文件
     const std::string           path = RM_CONFIG_PATH;
     const tools::config::Config config(path);

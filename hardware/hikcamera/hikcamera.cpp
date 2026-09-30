@@ -4,13 +4,11 @@
 
 #include <opencv2/imgproc.hpp>
 
-#include <cstddef>
 #include <cstdio>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
 #include <utility>
-#include <vector>
 
 namespace hardware::hikcamera
 {
@@ -62,25 +60,26 @@ bool is_mono(MvGvspPixelType type)
 }
 
 // Bayer8 -> BGR 的 OpenCV 转换码;非 Bayer8 返回 -1。
-int bayer_code(MvGvspPixelType type)
+int bayer_code(MvGvspPixelType type, DemosaicQuality quality)
 {
+    const bool ea = quality == DemosaicQuality::EdgeAware;
     switch (type)
     {
     case PixelType_Gvsp_BayerGR8:
-        return cv::COLOR_BayerGR2BGR;
+        return ea ? cv::COLOR_BayerGR2BGR_EA : cv::COLOR_BayerGR2BGR;
     case PixelType_Gvsp_BayerRG8:
-        return cv::COLOR_BayerRG2BGR;
+        return ea ? cv::COLOR_BayerRG2BGR_EA : cv::COLOR_BayerRG2BGR;
     case PixelType_Gvsp_BayerGB8:
-        return cv::COLOR_BayerGB2BGR;
+        return ea ? cv::COLOR_BayerGB2BGR_EA : cv::COLOR_BayerGB2BGR;
     case PixelType_Gvsp_BayerBG8:
-        return cv::COLOR_BayerBG2BGR;
+        return ea ? cv::COLOR_BayerBG2BGR_EA : cv::COLOR_BayerBG2BGR;
     default:
         return -1;
     }
 }
 
-// 把一帧 SDK 原始数据转成 OpenCV 图像。
-cv::Mat to_cv(void *handle, const MV_FRAME_OUT &raw)
+// 把一帧 SDK 原始数据转成 OpenCV 图像。每次返回独立拥有数据的 Mat。
+cv::Mat to_cv(void *handle, const MV_FRAME_OUT &raw, DemosaicQuality quality)
 {
     const auto &info   = raw.stFrameInfo;
     const int   width  = static_cast<int>(info.nWidth);
@@ -92,8 +91,8 @@ cv::Mat to_cv(void *handle, const MV_FRAME_OUT &raw)
         return cv::Mat(height, width, CV_8UC1, raw.pBufAddr).clone();
     }
 
-    // 彩色。
-    const int code = bayer_code(info.enPixelType);
+    // Bayer8:OpenCV 转换
+    const int code = bayer_code(info.enPixelType, quality);
     if (code >= 0)
     {
         const cv::Mat bayer(height, width, CV_8UC1, raw.pBufAddr);
@@ -102,9 +101,9 @@ cv::Mat to_cv(void *handle, const MV_FRAME_OUT &raw)
         return bgr;
     }
 
-    // 其他格式(YUV / RGB / 高位深 mono 等):SDK 转 8 位。
-    const bool                mono = is_mono(info.enPixelType);
-    std::vector<std::uint8_t> buffer(static_cast<std::size_t>(width) * height * (mono ? 1 : 3));
+    // 其他格式(YUV / RGB / 高位深 mono 等):SDK 转 8 位,直接写入目标 Mat。
+    const bool mono = is_mono(info.enPixelType);
+    cv::Mat    dst(height, width, mono ? CV_8UC1 : CV_8UC3);
     MV_CC_PIXEL_CONVERT_PARAM param{}; // NOLINT(bugprone-invalid-enum-default-initialization)
     param.nWidth         = info.nWidth;
     param.nHeight        = info.nHeight;
@@ -112,13 +111,13 @@ cv::Mat to_cv(void *handle, const MV_FRAME_OUT &raw)
     param.nSrcDataLen    = info.nFrameLen;
     param.enSrcPixelType = info.enPixelType;
     param.enDstPixelType = mono ? PixelType_Gvsp_Mono8 : PixelType_Gvsp_BGR8_Packed;
-    param.pDstBuffer     = buffer.data();
-    param.nDstBufferSize = static_cast<unsigned int>(buffer.size());
+    param.pDstBuffer     = dst.data;
+    param.nDstBufferSize = static_cast<unsigned int>(dst.total() * dst.elemSize());
     if (MV_CC_ConvertPixelType(handle, &param) != MV_OK)
     {
         return {};
     }
-    return cv::Mat(height, width, mono ? CV_8UC1 : CV_8UC3, buffer.data()).clone();
+    return dst;
 }
 } // namespace
 
@@ -190,7 +189,7 @@ void HikCamera::open()
 
 void HikCamera::configure()
 {
-    // 连续采集。
+    // 连续采集
     MV_CC_SetEnumValue(handle_, "TriggerMode", MV_TRIGGER_MODE_OFF);
     // 曝光与增益与白平衡配置。
     MV_CC_SetEnumValue(handle_, "ExposureAuto", MV_EXPOSURE_AUTO_MODE_OFF);
@@ -199,8 +198,30 @@ void HikCamera::configure()
     MV_CC_SetFloatValue(handle_, "Gain", config_.gain_db);
     // 白平衡固定关闭。
     MV_CC_SetEnumValue(handle_, "BalanceWhiteAuto", MV_BALANCEWHITE_AUTO_OFF);
-    // 不限制帧率,跑相机最大 fps。
-    MV_CC_SetBoolValue(handle_, "AcquisitionFrameRateEnable", false);
+    // 帧率:framerate>0 时启用并设为目标值,否则不限制、跑相机最大帧率。
+    if (config_.framerate > 0.0)
+    {
+        MV_CC_SetBoolValue(handle_, "AcquisitionFrameRateEnable", true);
+        MV_CC_SetFloatValue(handle_, "AcquisitionFrameRate", config_.framerate);
+    }
+    else
+    {
+        MV_CC_SetBoolValue(handle_, "AcquisitionFrameRateEnable", false);
+    }
+    // 相机侧裁切
+    if (config_.roi.enable)
+    {
+        MV_CC_SetIntValue(handle_, "OffsetX", static_cast<unsigned int>(config_.roi.x));
+        MV_CC_SetIntValue(handle_, "OffsetY", static_cast<unsigned int>(config_.roi.y));
+        if (config_.roi.width > 0)
+        {
+            MV_CC_SetIntValue(handle_, "Width", static_cast<unsigned int>(config_.roi.width));
+        }
+        if (config_.roi.height > 0)
+        {
+            MV_CC_SetIntValue(handle_, "Height", static_cast<unsigned int>(config_.roi.height));
+        }
+    }
     MV_CC_SetImageNodeNum(handle_, NODE_NUM);
     // 只取最新帧。
     MV_CC_SetGrabStrategy(handle_, MV_GrabStrategy_LatestImagesOnly);
@@ -237,7 +258,7 @@ void HikCamera::run()
 
         // 取出原始数据后立即记录出流时刻。
         const TimePoint stamp = tools::time::now();
-        cv::Mat         frame = to_cv(handle_, raw);
+        cv::Mat         frame = to_cv(handle_, raw, config_.demosaic);
         MV_CC_FreeImageBuffer(handle_, &raw);
 
         if (!frame.empty())

@@ -29,10 +29,18 @@ try
     {
         const auto    path = std::filesystem::temp_directory_path() / "rm_vision_hikcamera_test.yaml";
         std::ofstream out(path);
-        out << "hikcamera:\n  serial: ABC123\n  exposure_us: 5000\n  gain_db: 6.5\n";
+        out << "hikcamera:\n"
+               "  serial: \n"
+               "  exposure_us: 5000\n"
+               "  gain_db: 10\n"
+               "  framerate: 0\n"
+               "  demosaic: bilinear\n"
+               "  roi: {enable: false, x: 0, y: 0, width: 0, height: 0}\n";
         out.close();
         const auto cfg = hardware::hikcamera::load_hikcamera_config(tools::config::Config(path.string()));
-        if (cfg.serial != "ABC123" || cfg.exposure_us != 5000.0 || cfg.gain_db != 6.5)
+        if (cfg.serial != "ABC123" || cfg.exposure_us != 5000.0 || cfg.gain_db != 6.5 || cfg.framerate != 200.0 ||
+            cfg.demosaic != hardware::hikcamera::DemosaicQuality::Bilinear || !cfg.roi.enable || cfg.roi.x != 0 ||
+            cfg.roi.y != 0 || cfg.roi.width != 0 || cfg.roi.height != 0)
         {
             std::cerr << "FAIL: hikcamera config load\n";
             return 1;

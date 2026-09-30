@@ -40,6 +40,13 @@ add_test(NAME hikcamera COMMAND hikcamera_test)
 # 无相机 / 无 Viewer 时测试直接结束;RM_DEBUG 且 Viewer 在线时会连续发送 5s
 set_tests_properties(hikcamera PROPERTIES TIMEOUT 60)
 
+# 基准自检:Bayer->BGR 转换耗时对比 + 实机采集帧率(无相机时跳过采集部分)。
+add_executable(hikcamera_bench hikcamera/bench.cpp)
+target_link_libraries(hikcamera_bench PRIVATE hardware tools)
+
+add_test(NAME hikcamera_bench COMMAND hikcamera_bench)
+set_tests_properties(hikcamera_bench PROPERTIES TIMEOUT 60)
+
 # USB(UVC)相机驱动:走 OpenCV 的 V4L2 后端
 add_library(usbcamera STATIC usbcamera/usbcamera.cpp)
 target_link_libraries(usbcamera PUBLIC ${OpenCV_LIBS} tools)

@@ -38,6 +38,24 @@ class Config
         }
     }
 
+    // 按 `.` 路径取可选项:缺失或为空时返回默认值。
+    template <typename T> [[nodiscard]] T value(const std::string &path, T fallback) const
+    {
+        const YAML::Node node = find(path);
+        if (!node || node.IsNull())
+        {
+            return fallback;
+        }
+        try
+        {
+            return node.as<T>();
+        }
+        catch (const YAML::Exception &error)
+        {
+            throw std::runtime_error("Configuration item type error " + path + ": " + error.what());
+        }
+    }
+
   private:
     // 按 `.` 路径逐层下钻,返回命中的节点
     [[nodiscard]] YAML::Node find(const std::string &path) const
