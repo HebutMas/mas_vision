@@ -98,6 +98,7 @@ int main()
     std::uint8_t buffer[64] = {};
     pollfd       descriptor{master, POLLIN, 0};
     check(::poll(&descriptor, 1, 1000) == 1, "tx poll");
+    // NOLINTNEXTLINE(clang-analyzer-unix.BlockInCriticalSection): 误报,wait_for 已释放 unique_lock。
     const ssize_t n = ::read(master, buffer, sizeof(buffer));
     check(n == static_cast<ssize_t>(SerialPort::FRAME_TX_SIZE), "tx frame size");
     check(buffer[0] == SerialPort::TX_HEADER, "tx header");
@@ -121,7 +122,7 @@ int main()
     // 设备不存在时构造不抛异常,保持在未连接状态(后台持续重连)。
     {
         const auto missing_path = write_serial_yaml("/dev/rm-nonexistent");
-        SerialPort missing(tools::config::Config(missing_path.string()));
+        SerialPort const missing(tools::config::Config(missing_path.string()));
         check(!missing.is_open(), "missing device stays closed");
     }
 
@@ -136,7 +137,7 @@ int main()
             out.close();
             try
             {
-                hardware::serialport::SerialPort port(tools::config::Config(path.string()));
+                hardware::serialport::SerialPort const port(tools::config::Config(path.string()));
                 return true;
             }
             catch (const std::exception &)

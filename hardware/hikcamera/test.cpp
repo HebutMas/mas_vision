@@ -1,5 +1,5 @@
 #include "hardware/hikcamera/hikcamera.hpp"
-#if defined(RM_DEBUG)
+#ifdef RM_DEBUG
 #include "tools/debug/debug.hpp"
 #include "tools/debug/video/video_encoder.hpp"
 #include "tools/time/time.hpp"
@@ -13,7 +13,7 @@
 #include <string>
 #include <utility>
 
-#if defined(RM_DEBUG)
+#ifdef RM_DEBUG
 namespace
 {
 constexpr int SEND_SECONDS = 5;
@@ -72,7 +72,7 @@ try
         {
             std::cout << "Frame captured successfully: " << frame.image.cols << "x" << frame.image.rows << " channels=" << frame.image.channels()
                       << "\n";
-#if defined(RM_DEBUG)
+#ifdef RM_DEBUG
             tools::debug::Sink debug("rm_vision.hikcamera");
             if (debug.active())
             {

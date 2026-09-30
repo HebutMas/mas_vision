@@ -36,6 +36,9 @@ RoboMaster 自瞄视觉框架。纯 C++17,无 ROS 依赖,面向无头 Linux 部�
 │   ├── hikcamera/               # hikcamera,海康 USB3.0 相机驱动
 │   ├── usbcamera/               # usbcamera,USB(UVC)相机驱动
 │   └── serialport/              # serialport
+├── modules/                     # 模块层
+│   ├── auto_armor/              # 装甲板识别
+│   └── auto_buff/               # 能量机关识别
 └── apps/                        # 应用层
     └── templates/               # 新兵种示例
 ```

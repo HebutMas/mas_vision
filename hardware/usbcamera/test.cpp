@@ -1,5 +1,5 @@
 #include "hardware/usbcamera/usbcamera.hpp"
-#if defined(RM_DEBUG)
+#ifdef RM_DEBUG
 #include "tools/debug/debug.hpp"
 #include "tools/debug/video/video_encoder.hpp"
 #include "tools/time/time.hpp"
@@ -13,7 +13,7 @@
 #include <string>
 #include <utility>
 
-#if defined(RM_DEBUG)
+#ifdef RM_DEBUG
 namespace
 {
 constexpr int SEND_SECONDS = 5;
@@ -80,7 +80,7 @@ try
         if (frames.wait_for(frame, std::chrono::milliseconds(2000)) && !frame.image.empty())
         {
             std::cout << "抓帧成功: " << frame.image.cols << "x" << frame.image.rows << " channels=" << frame.image.channels() << "\n";
-#if defined(RM_DEBUG)
+#ifdef RM_DEBUG
             tools::debug::Sink debug("rm_vision.usbcamera");
             if (debug.active())
             {

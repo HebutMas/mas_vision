@@ -180,7 +180,7 @@ bool SerialPort::open() noexcept
     ::tcflush(fd, TCIOFLUSH);
 
     {
-        std::lock_guard<std::mutex> lock(fd_mutex_);
+        std::scoped_lock const lock(fd_mutex_);
         fd_.store(fd);
     }
     rx_len_ = 0;     // 丢弃上一条链路的半帧。
@@ -202,7 +202,7 @@ void SerialPort::send(const SendPacket &packet)
     frame[FRAME_TX_SIZE - 2] = static_cast<std::uint8_t>(crc & 0xFF);
     frame[FRAME_TX_SIZE - 1] = static_cast<std::uint8_t>(crc >> 8);
 
-    std::lock_guard<std::mutex> lock(fd_mutex_);
+    std::scoped_lock const lock(fd_mutex_);
     const int                   fd = fd_.load();
     if (fd < 0)
     {
@@ -226,7 +226,7 @@ void SerialPort::disconnect_locked() noexcept
 
 void SerialPort::disconnect() noexcept
 {
-    std::lock_guard<std::mutex> lock(fd_mutex_);
+    std::scoped_lock const lock(fd_mutex_);
     disconnect_locked();
 }
 
@@ -340,7 +340,7 @@ bool SerialPort::serialread()
                 break; // 等待更多字节。
             }
 
-            const std::uint16_t expected = static_cast<std::uint16_t>(rx_buf_[FRAME_RX_SIZE - 2] | (rx_buf_[FRAME_RX_SIZE - 1] << 8));
+            const auto expected = static_cast<std::uint16_t>(rx_buf_[FRAME_RX_SIZE - 2] | (rx_buf_[FRAME_RX_SIZE - 1] << 8));
             if (tools::crc16::checksum(rx_buf_.data(), FRAME_RX_SIZE - 2) != expected)
             {
                 // 假帧头:前移 1 字节重扫。

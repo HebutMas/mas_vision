@@ -57,6 +57,11 @@ void UsbCamera::open()
 
 void UsbCamera::configure()
 {
+    const int fourcc = to_fourcc(config_.fourcc);
+    if (fourcc != 0)
+    {
+        capture_.set(cv::CAP_PROP_FOURCC, fourcc);
+    }
     if (config_.width > 0)
     {
         capture_.set(cv::CAP_PROP_FRAME_WIDTH, config_.width);
@@ -68,12 +73,6 @@ void UsbCamera::configure()
     if (config_.fps > 0)
     {
         capture_.set(cv::CAP_PROP_FPS, config_.fps);
-    }
-    // 像素格式:USB2 上跑高分辨率 / 高帧率通常需要 MJPG。
-    const int fourcc = to_fourcc(config_.fourcc);
-    if (fourcc != 0)
-    {
-        capture_.set(cv::CAP_PROP_FOURCC, fourcc);
     }
     // 曝光:0=自动,1=手动;手动模式下再设曝光值与增益。
     capture_.set(cv::CAP_PROP_AUTO_EXPOSURE, config_.auto_exposure == 0 ? EXPOSURE_AUTO : EXPOSURE_MANUAL);

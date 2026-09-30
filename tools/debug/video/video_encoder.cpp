@@ -1,5 +1,6 @@
 #include "tools/debug/video/video_encoder.hpp"
 
+#include <cstddef>
 #include <opencv2/imgproc.hpp>
 
 #include <cstring>
@@ -90,20 +91,20 @@ struct VideoEncoder::Impl
     // Y 平面:逐行拷贝(源行宽 = width,目标行宽可能带对齐)。
     for (int y = 0; y < height; ++y)
     {
-      std::memcpy(sw_frame->data[0] + static_cast<std::ptrdiff_t>(y) * sw_frame->linesize[0],
+      std::memcpy(sw_frame->data[0] + (static_cast<std::ptrdiff_t>(y) * sw_frame->linesize[0]),
                   i420.ptr(y), static_cast<std::size_t>(width));
     }
     // NV12 的 UV 是交错平面;I420 的 U/V 各是 (H/2)×(W/2) 的逻辑平面,按「W 字节/行」的
     // 步长切开:逻辑第 row 行落在 U 块第 (row/2) 行的前半或后半。这样寻址与 i420.step 无关。
     for (int row = 0; row < height / 2; ++row)
     {
-      const std::uint8_t * u   = i420.ptr(height + row / 2) + (row % 2) * (width / 2);
-      const std::uint8_t * v   = i420.ptr(height + height / 4 + row / 2) + (row % 2) * (width / 2);
-      std::uint8_t *       dst = sw_frame->data[1] + static_cast<std::ptrdiff_t>(row) * sw_frame->linesize[1];
+      const std::uint8_t * u   = i420.ptr(height + (row / 2)) + (static_cast<std::ptrdiff_t>((row % 2) * (width / 2)));
+      const std::uint8_t * v   = i420.ptr(height + (height / 4) + (row / 2)) + (static_cast<std::ptrdiff_t>((row % 2) * (width / 2)));
+      std::uint8_t *       dst = sw_frame->data[1] + (static_cast<std::ptrdiff_t>(row) * sw_frame->linesize[1]);
       for (int x = 0; x < width / 2; ++x)
       {
-        dst[2 * x]     = u[x];
-        dst[2 * x + 1] = v[x];
+        dst[static_cast<std::ptrdiff_t>(2 * x)] = u[x];
+        dst[(2 * x) + 1]                        = v[x];
       }
     }
   }
@@ -276,7 +277,7 @@ std::vector<EncodedFrame> VideoEncoder::encode(const cv::Mat & bgr, std::chrono:
 
 std::vector<EncodedFrame> VideoEncoder::flush()
 {
-  int ret = avcodec_send_frame(impl_->ctx, nullptr);
+  int const ret = avcodec_send_frame(impl_->ctx, nullptr);
   if (ret < 0 && ret != AVERROR_EOF)
   {
     throw std::runtime_error("video encoder: flush failed: " + av_error(ret));
