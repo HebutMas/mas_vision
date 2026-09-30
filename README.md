@@ -19,12 +19,10 @@ RoboMaster 自瞄视觉框架。纯 C++17,无 ROS 依赖,面向无头 Linux 部�
 ```
 .
 ├── CMakeLists.txt
-├── 3rdparty/                    # 随仓库携带的第三方依赖(MVS SDK、Rerun/Arrow 等)
 ├── docs/
 │   └── build.md                 # 开发环境与构建文档
 ├── docker/                      # 发行版(Ubuntu 22.04 / Debian 13)开发镜像
 ├── scripts/
-│   ├── build_opencv.sh          # 构建 OpenCV 4.10(Ubuntu / Debian / Fedora)
 │   └── lint.sh                  # 格式化 + clang-tidy + cppcheck
 ├── tools/                       # 工具层
 │   ├── algorithm/               # algorithm

@@ -1,6 +1,8 @@
 #include "hardware/usbcamera/usbcamera.hpp"
 #if defined(RM_DEBUG)
 #include "tools/debug/debug.hpp"
+#include "tools/debug/video/video_encoder.hpp"
+#include "tools/time/time.hpp"
 #endif
 
 #include <chrono>
@@ -9,6 +11,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <utility>
 
 #if defined(RM_DEBUG)
 namespace
@@ -18,7 +21,7 @@ constexpr int SEND_SECONDS = 5;
 #endif
 
 // 测试:没有相机时应当抛异常并返回 0;接了相机则抓一帧验证输出格式。
-// 调试构建下若相机出图,再把这一帧送到 Rerun Viewer 方便肉眼确认。
+// 调试构建下若相机出图发送到Rerun Viewer 方便肉眼确认。
 int main()
 try
 {
@@ -81,38 +84,53 @@ try
             tools::debug::Sink debug("rm_vision.usbcamera");
             if (debug.active())
             {
-                // 连续发送 5 秒,每帧带上相对统一基准的时间戳,方便在 Viewer 里按真实时间回放。
-                std::cout << "开始连续发送画面到 Rerun(5s)\n";
-                const auto deadline = tools::time::now() + std::chrono::seconds(SEND_SECONDS);
-                int        index    = 0;
-                while (tools::time::now() < deadline && !frame.image.empty())
+                // 连续发送 5 秒
+                try
                 {
-                    debug.set_frame(index);
-                    debug.set_time("time", tools::time::since_base(frame.timestamp));
-                    debug.image("camera/image", frame.image);
-                    ++index;
-                    if (!frames.wait_for(frame, std::chrono::milliseconds(2000)))
+                    tools::video::VideoEncoderConfig encoder_config;
+                    encoder_config.width  = frame.image.cols;
+                    encoder_config.height = frame.image.rows;
+                    tools::video::VideoEncoder encoder(encoder_config);
+
+                    std::cout << "start send video to Rerun(5s)\n";
+                    const auto deadline = tools::time::now() + std::chrono::seconds(SEND_SECONDS);
+                    int        index    = 0;
+                    while (tools::time::now() < deadline && !frame.image.empty())
                     {
-                        break;
+                        const auto timestamp = tools::time::since_base(frame.timestamp);
+                        debug.set_frame(index++);
+                        debug.set_time("time", timestamp);
+                        for (auto &encoded : encoder.encode(frame.image, timestamp))
+                        {
+                            debug.video("camera/image", std::move(encoded.data), encoded.keyframe);
+                        }
+                        if (!frames.wait_for(frame, std::chrono::milliseconds(2000)))
+                        {
+                            break;
+                        }
                     }
                 }
-                std::cout << "已发送 " << index << " 帧到 Rerun\n";
+                catch (const std::exception &error)
+                {
+                    // 无 VAAPI 设备等异常:跳过视频输出,不算失败。
+                    std::cout << "skip video output: " << error.what() << "\n";
+                }
             }
             else
             {
-                std::cout << "Rerun Viewer 不可用,跳过画面输出\n";
+                std::cout << "Rerun Viewer is not available, skipping video output\n";
             }
 #endif
         }
         else
         {
-            std::cout << "超时未取到帧(相机可能未正常出图)\n";
+            std::cout << "Timeout: no frame captured (camera may not be outputting images correctly)\n";
         }
     }
     catch (const std::exception &error)
     {
         // 找不到相机属于正常情况:驱动会抛异常,这里视为通过。
-        std::cout << "未打开相机: " << error.what() << "\n";
+        std::cout << "usbcamera test error: " << error.what() << "\n";
     }
 
     std::cout << "usbcamera test passed\n";

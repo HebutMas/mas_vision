@@ -26,109 +26,16 @@ else()
   set(RM_YAML_CPP_TARGET yaml-cpp)
 endif()
 
-# Eigen:优先用系统安装，缺失时自动解压仓库内 3rdparty 的源码包
-find_package(Eigen3 CONFIG QUIET)
-if(NOT TARGET Eigen3::Eigen)
-  set(RM_EIGEN_TARBALL "${PROJECT_SOURCE_DIR}/3rdparty/eigen-3.4.0.tar.gz"
-      CACHE FILEPATH "Local Eigen 3.4.0 source tarball (optional)")
-  set(RM_EIGEN_MD5 4c527a9171d71a72a9d4186e65bea559)
-  set(_eigen_root "${CMAKE_BINARY_DIR}/_deps/eigen-src/eigen-3.4.0")
-  if(NOT EXISTS "${_eigen_root}/Eigen/Core")
-    if(NOT EXISTS "${RM_EIGEN_TARBALL}")
-      message(FATAL_ERROR "未找到 Eigen:请安装 libeigen3-dev / eigen3-devel,"
-                          "或用 -DRM_EIGEN_TARBALL=<eigen 源码包> 指定")
-    endif()
-    file(MD5 "${RM_EIGEN_TARBALL}" _eigen_hash)
-    if(NOT "${_eigen_hash}" STREQUAL "${RM_EIGEN_MD5}")
-      message(FATAL_ERROR "Eigen 源码包校验失败:${RM_EIGEN_TARBALL}")
-    endif()
-    message(STATUS "Extracting Eigen from ${RM_EIGEN_TARBALL}")
-    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/_deps/eigen-src")
-    execute_process(COMMAND ${CMAKE_COMMAND} -E tar xzf "${RM_EIGEN_TARBALL}"
-                    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/_deps/eigen-src"
-                    RESULT_VARIABLE _eigen_rc)
-    if(NOT _eigen_rc EQUAL 0)
-      message(FATAL_ERROR "解压 Eigen 失败(${_eigen_rc}):${RM_EIGEN_TARBALL}")
-    endif()
-  endif()
-  add_library(Eigen3::Eigen INTERFACE IMPORTED)
-  target_include_directories(Eigen3::Eigen INTERFACE "${_eigen_root}")
-endif()
+# Eigen
+find_package(Eigen3 REQUIRED)
 
 include_directories(${PROJECT_SOURCE_DIR})
 
 enable_testing()
 
 if(RM_DEBUG)
-  # 优先使用系统/基础镜像里预装的 rerun_sdk(已连同 Arrow 静态库一起装在 /usr/local),
-  # 命中即跳过下面的 FetchContent 与 Arrow 源码编译;否则回退到仓库内 3rdparty 的 SDK 自行构建。
-  find_package(rerun_sdk CONFIG QUIET)
-  if(NOT rerun_sdk_FOUND)
-  include(FetchContent)
-  # 默认用仓库内 3rdparty/ 里已随源码携带的 SDK,离线可用;也可覆盖成本地路径或 URL。
-  set(RM_RERUN_SDK_ZIP "${PROJECT_SOURCE_DIR}/3rdparty/rerun_cpp_sdk.zip"
-      CACHE STRING "Path or URL of rerun_cpp_sdk.zip")
-
-  FetchContent_Declare(rerun_sdk URL ${RM_RERUN_SDK_ZIP})
-  FetchContent_MakeAvailable(rerun_sdk)
-
-  # Rerun SDK 默认从 GitHub 拉 Apache Arrow 18.0.0 源码再本机构建。先按校验和把源码包
-  # 预置到其 ExternalProject 的下载目录,网络受限时可直接命中镜像、跳过 GitHub;
-  # 预置失败也不影响 SDK 自带的 GitHub 回退。
-  set(RM_ARROW_TARBALL "${PROJECT_SOURCE_DIR}/3rdparty/apache-arrow-18.0.0.tar.gz"
-      CACHE FILEPATH "Local apache-arrow-18.0.0.tar.gz (optional)")
-  set(RM_ARROW_URL
-      "https://mirrors.huaweicloud.com/apache/arrow/arrow-18.0.0/apache-arrow-18.0.0.tar.gz"
-      CACHE STRING "Mirror URL of the Apache Arrow source tarball")
-  set(RM_ARROW_MD5 96a4e40287137867c9fe7a2b6c3e5083)
-
-  set(_arrow_dir "${FETCHCONTENT_BASE_DIR}/rerun_sdk-build/arrow/src")
-  set(_arrow_dst "${_arrow_dir}/apache-arrow-18.0.0.tar.gz")
-
-  set(_arrow_ok FALSE)
-  if(EXISTS "${_arrow_dst}")
-    file(MD5 "${_arrow_dst}" _arrow_hash)
-    if("${_arrow_hash}" STREQUAL "${RM_ARROW_MD5}")
-      set(_arrow_ok TRUE)
-    endif()
-  endif()
-
-  if(NOT _arrow_ok)
-    if(RM_ARROW_TARBALL AND EXISTS "${RM_ARROW_TARBALL}")
-      message(STATUS "Pre-seeding Arrow from ${RM_ARROW_TARBALL}")
-      file(MAKE_DIRECTORY "${_arrow_dir}")
-      file(COPY "${RM_ARROW_TARBALL}" DESTINATION "${_arrow_dir}")
-    elseif(RM_ARROW_URL)
-      message(STATUS "Pre-seeding Arrow from ${RM_ARROW_URL}")
-      file(MAKE_DIRECTORY "${_arrow_dir}")
-      file(DOWNLOAD "${RM_ARROW_URL}" "${_arrow_dst}" EXPECTED_MD5 "${RM_ARROW_MD5}"
-           TIMEOUT 120 SHOW_PROGRESS STATUS _arrow_status)
-    endif()
-  endif()
-
-  # Arrow 的精简构建还会从 GitHub 拉一个 xsimd 13.0.0 压缩包。同样按哈希预置,
-  # 与 Arrow 的处理方式一致:匹配则跳过下载,缺失/不符则回退到 SDK 自带的 URL。
-  set(RM_XSIMD_TARBALL "${PROJECT_SOURCE_DIR}/3rdparty/xsimd-13.0.0.tar.gz"
-      CACHE FILEPATH "Local xsimd-13.0.0.tar.gz (optional)")
-  set(RM_XSIMD_SHA256 8bdbbad0c3e7afa38d88d0d484d70a1671a1d8aefff03f4223ab2eb6a41110a3)
-
-  set(_xsimd_dir "${FETCHCONTENT_BASE_DIR}/rerun_sdk-build/arrow/src/arrow_cpp-build/src")
-  set(_xsimd_dst "${_xsimd_dir}/13.0.0.tar.gz")
-
-  set(_xsimd_ok FALSE)
-  if(EXISTS "${_xsimd_dst}")
-    file(SHA256 "${_xsimd_dst}" _xsimd_hash)
-    if("${_xsimd_hash}" STREQUAL "${RM_XSIMD_SHA256}")
-      set(_xsimd_ok TRUE)
-    endif()
-  endif()
-
-  if(NOT _xsimd_ok AND RM_XSIMD_TARBALL AND EXISTS "${RM_XSIMD_TARBALL}")
-    message(STATUS "Pre-seeding xsimd from ${RM_XSIMD_TARBALL}")
-    file(MAKE_DIRECTORY "${_xsimd_dir}")
-    file(COPY "${RM_XSIMD_TARBALL}" DESTINATION "${_xsimd_dir}")
-  endif()
-  endif()
+  # Rerun C++ SDK:需先按 docs/build.md 第四节编译安装到系统(/usr/local),
+  find_package(rerun_sdk REQUIRED)
 endif()
 
 add_subdirectory(tools)

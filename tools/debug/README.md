@@ -9,7 +9,8 @@
 | `debug.hpp` | 唯一对外接口。`tools::debug::Sink`,header-only。 |
 | `test.cpp` | 链路测试,只在调试构建时生成 `debug_test`,并由 ctest 运行。 |
 
-第三方依赖在仓库根的 `3rdparty/`。
+Rerun C++ SDK 与 Apache Arrow 需编译安装到系统(`/usr/local`),CMake 通过 `find_package(rerun_sdk)` 命中;
+未安装则配置直接报错。
 
 ## 工作方式
 
@@ -17,12 +18,12 @@
 机器人(无头)                                  开发机
   apps/infantry                                  rerun --serve-web
       │ tools::debug::Sink                           ▲
-      │   image / data / log                          │ gRPC :9876
+      │   data / log / video                           │ gRPC :9876
       └────────── connect_grpc ───────────────────────┘
                                                          浏览器 http://<开发机IP>:9090
 ```
 
-数据走 gRPC,图像在机器人侧压成 JPEG 再发,所以一条千兆网线足够跑满相机帧率。
+数据走 gRPC;视频在机器人侧硬编成 H.264 再发,所以一条千兆网线足够跑满相机帧率。
 
 > 已知限制:如果 Viewer 中途挂掉,底层 gRPC 客户端可能阻塞在进程退出阶段。调试时请保证
 > Viewer 全程在线;真遇到卡住,重启机器人进程即可。
@@ -37,30 +38,22 @@ tools::debug::Sink debug("rm_vision.infantry", "rerun+http://<开发机IP>:9876/
 
 | 接口 | 说明 |
 |---|---|
-| `image(path, bgr [, jpeg_quality])` | 发送一张 OpenCV BGR 图像,内部 JPEG 压缩。默认质量 80。 |
 | `data(path, value)` | 发送单个标量,Viewer 中是一条曲线。 |
-| `data(path, values, names)` | 发送多分量,第 i 个分量记到 `<path>/<names[i]>`。 |
+| `data(path, values)` | 发送多分量,整体记到 `<path>` 一个 entity,Viewer 中是同一张图内的多条曲线。 |
+| `video(path, data, keyframe)` | 发送一帧 H.264 视频样本(Annex B 访问单元),`keyframe` 表示 IDR。 |
 | `log(level, message [, path])` | 发送带等级的文本日志,`Level` 有 `debug/info/warn/error`。 |
 
 主循环里典型用法:
 
 ```cpp
 debug.set_frame(frame);                                       // 帧序号时间轴,可逐帧回放
-debug.image("camera/image", bgr);                             // 图像
 debug.data("ekf/yaw", target.yaw);                            // 单值曲线
-debug.data("imu/quat", {imu.w, imu.x, imu.y, imu.z},
-           {"w", "x", "y", "z"});                             // → imu/quat/w, imu/quat/x ...
+debug.data("imu/quat", {imu.w, imu.x, imu.y, imu.z});         // 同一张图里的 4 条曲线
+debug.video("camera/image", packet, is_key);                  // H.264 视频帧
 debug.log(tools::debug::Level::warn, "target lost");          // 带等级日志
 ```
 
-- `set_frame` 建议在主循环开头调用一次。Viewer 里可以拖时间轴逐帧回放,配合图像和曲线对比。
-- 多分量接口需要自己写分量名,`values` 与 `names` 必须等长,否则整次调用被跳过。
-  结构体拆开写即可:
-
-  ```cpp
-  debug.data("imu/quat", {imu.w, imu.x, imu.y, imu.z}, {"w", "x", "y", "z"});
-  ```
-
+- `set_frame` 建议在主循环开头调用一次。Viewer 里可以拖时间轴逐帧回放,配合曲线对比。
 - 路径推荐按模块分层,例如 `camera/image`、`det/boxes`、`ekf/yaw`、`shoot/decision`。
 - 未定义 `RM_DEBUG` 时以上调用全部是空操作,参数甚至不会被求值之外地使用。
 
@@ -99,25 +92,11 @@ cmake --build build -j4
 
 ## 首次构建
 
-`RM_DEBUG` 打开后,首次配置/构建会:
+先把 Rerun C++ SDK 编译安装到系统(装到 `/usr/local`,之前需先构建 Apache Arrow 18.0.0,
+首次约 5~10 分钟)。之后 CMake 的 `find_package(rerun_sdk)` 直接命中,详见
+[`docs/build.md`](../../docs/build.md) 第四节。
 
-1. 解压 `3rdparty/rerun_cpp_sdk.zip`(约 56 MB,含各平台预编译 `rerun_c`);
-2. 本机构建 Apache Arrow 18.0.0 静态库(源码取自 `3rdparty/apache-arrow-18.0.0.tar.gz`,
-   其构建过程所需的 xsimd 取自 `3rdparty/xsimd-13.0.0.tar.gz`)。
-   首次约 5~10 分钟,之后增量构建很快。
-
-可覆盖的 CMake 变量:
-
-| 变量 | 默认值 | 说明 |
-|---|---|---|
-| `RM_RERUN_SDK_ZIP` | `3rdparty/rerun_cpp_sdk.zip` | SDK zip 的路径或 URL |
-| `RM_ARROW_TARBALL` | `3rdparty/apache-arrow-18.0.0.tar.gz` | Arrow 源码包路径 |
-| `RM_ARROW_URL` | 华为云镜像 | 本地 Arrow 包缺失时的下载地址 |
-| `RM_ARROW_MD5` | `96a4e40287137867c9fe7a2b6c3e5083` | Arrow 源码包校验和 |
-| `RM_XSIMD_TARBALL` | `3rdparty/xsimd-13.0.0.tar.gz` | Arrow 构建所需的 xsimd 源码包路径 |
-| `RM_XSIMD_SHA256` | `8bdbbad0...41110a3` | xsimd 源码包校验和 |
-
-> 预置失败不影响构建:SDK 会自动回退到它自带的 GitHub 地址,只是会很慢。
+未安装时 `RM_DEBUG` 配置会直接报错,不再自动下载(不留兜底)。
 
 ## 生产构建
 
@@ -134,10 +113,8 @@ cmake --build build -j4
 **开发机能 ping 通但探不到**
 检查防火墙是否放行 9876(TCP)与 9090(浏览器页面)。
 
-**首次构建卡在 Arrow / xsimd**
-看它的下载进度即可;两者都已随仓库提供源码包,正常不会走网络。若确实卡住,可用
-`-DRM_ARROW_URL` 换个镜像,或手工把源码包放到 `-DRM_ARROW_TARBALL`、`-DRM_XSIMD_TARBALL`
-指向的位置。
+**首次安装 SDK 卡在 Arrow / xsimd**
+安装 Rerun SDK 时其 CMake 会先下载并编译 Arrow 与 xsimd,看下载进度即可。
 
 **Viewer 打开后一片空白**
 确认机器人进程真的在发数据(`Sink::active()` 为 true),以及浏览器连的是同一台 Viewer。

@@ -9,8 +9,6 @@
 //   ./build/tools/debug_test rerun+http://<开发机IP>:9876/proxy
 #include "tools/debug/debug.hpp"
 
-#include <opencv2/imgproc.hpp>
-
 #include <chrono>
 #include <cmath>
 #include <exception>
@@ -21,8 +19,6 @@
 
 namespace
 {
-constexpr double PI = 3.14159265358979323846;
-
 // 离线时允许的最大构造耗时。预探测超时是 300ms,这里放宽到 2s;
 // 一旦预探测失效(退化成 gRPC 的 ~5s 阻塞),断言就会失败。
 constexpr double MAX_OFFLINE_SINK_SECONDS = 2.0;
@@ -30,30 +26,17 @@ constexpr double MAX_OFFLINE_SINK_SECONDS = 2.0;
 // 在线时发送的帧数;30 帧 x 30ms ≈ 1s,够跑通链路又不拖慢 ctest。
 constexpr int ONLINE_FRAMES = 30;
 
-// 生成一帧合成图像:一个圆周轨迹上的圆点,外加一个绕它旋转的方框。
-// 把方框顶点作为装甲板四点返回,便于在 Viewer 里检查几何叠加。
-cv::Mat draw_frame(int frame, std::vector<cv::Point> & armor_corners, cv::Point2f & marker)
+// 圆周轨迹上的一个点,作为两个分量发送,便于在 Viewer 里检查曲线叠加。
+struct Marker
+{
+  double x;
+  double y;
+};
+
+Marker marker_at(int frame)
 {
   const double t = frame * 0.1;
-  const cv::Point2f center{320.0F, 240.0F};
-  marker = {center.x + static_cast<float>(150.0 * std::cos(t)),
-            center.y + static_cast<float>(150.0 * std::sin(t))};
-
-  cv::Mat image(480, 640, CV_8UC3, cv::Scalar(20, 20, 20));
-  cv::circle(image, center, 150, {0, 120, 0}, 1);
-  cv::circle(image, marker, 8, {0, 0, 255}, cv::FILLED);
-
-  armor_corners.clear();
-  armor_corners.reserve(4);
-  for (int i = 0; i < 4; ++i)
-  {
-    const double theta = t + (static_cast<double>(i) * PI / 2.0) + (PI / 4.0);
-    const int x = static_cast<int>(marker.x + (45.0F * std::cos(theta)));
-    const int y = static_cast<int>(marker.y + (45.0F * std::sin(theta)));
-    armor_corners.emplace_back(x, y);
-  }
-  cv::polylines(image, armor_corners, true, {0, 255, 0}, 2);
-  return image;
+  return {320.0 + (150.0 * std::cos(t)), 240.0 + (150.0 * std::sin(t))};
 }
 
 // Viewer 不在线时的用例:构造必须快,且之后所有调用都得是安全空操作。
@@ -68,9 +51,8 @@ int run_offline(const std::string & address, double construct_seconds)
 
   tools::debug::Sink sink("rm_vision.debug_test", address);
   sink.set_frame(0);
-  sink.image("camera/image", cv::Mat::zeros(8, 8, CV_8UC3));
   sink.data("test/value", 1.0);
-  sink.data("test/values", {1.0, 2.0}, {"a", "b"});
+  sink.data("test/values", {1.0, 2.0});
   sink.log(tools::debug::Level::info, "offline");
 
   std::cout << "Viewer offline,Sink downgraded(structure time " << construct_seconds << "s)\n";
@@ -84,15 +66,10 @@ int run_online(tools::debug::Sink & sink)
   {
     sink.set_frame(frame);
 
-    std::vector<cv::Point> armor_corners;
-    cv::Point2f marker;
-    const cv::Mat image = draw_frame(frame, armor_corners, marker);
+    const Marker marker = marker_at(frame);
 
-    // 图像:内部 JPEG 压缩后发送,调用方只负责画。
-    sink.image("camera/image", image);
-    // 数据:x / y 两个分量,在 Viewer 里展开成 test > marker > x / y 两条曲线。
-    sink.data("test/marker", {static_cast<double>(marker.x), static_cast<double>(marker.y)},
-              {"x", "y"});
+    // 数据:x / y 两个分量,在 Viewer 里是同一张图里的两条曲线。
+    sink.data("test/marker", {marker.x, marker.y});
     // 日志:带等级。
     sink.log(tools::debug::Level::info, "debug test frame " + std::to_string(frame));
 

@@ -1,12 +1,11 @@
 #pragma once
 
-#include <opencv2/core.hpp>
-#include <opencv2/imgcodecs.hpp>
-
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #if defined(RM_DEBUG)
@@ -215,29 +214,6 @@ public:
 #endif
   }
 
-  // 发送一张图像。bgr 是 OpenCV 默认的 BGR 图,内部会 JPEG 压缩后再发,避免占满带宽。
-  // 本函数只做编码与发送，jpeg_quality 取值范围 0~100,画质 / 带宽的折中。
-  void image(const std::string & path, const cv::Mat & bgr, int jpeg_quality = 80)
-  {
-#if defined(RM_DEBUG)
-    if (!active_ || bgr.empty())
-    {
-      return;
-    }
-    std::vector<unsigned char> buffer;
-    const std::vector<int> params{cv::IMWRITE_JPEG_QUALITY, jpeg_quality};
-    if (!cv::imencode(".jpg", bgr, buffer, params))
-    {
-      return;
-    }
-    stream_->log(path, rerun::EncodedImage::from_bytes(buffer, "image/jpeg"));
-#else
-    (void)path;
-    (void)bgr;
-    (void)jpeg_quality;
-#endif
-  }
-
   // 发送单个标量,Viewer 中表现为一条曲线(如 ekf/yaw、debug/latency)。
   void data(const std::string & path, double value)
   {
@@ -253,24 +229,44 @@ public:
 #endif
   }
 
-  // 发送多分量数据(如 IMU 四元数、EKF 状态向量)。第 i 个分量记到 <path>/<names[i]>,这样在 Viewer
-  // 里形成可展开的层级 values 与 names 必须等长,否则整次调用跳过。
-  void data(const std::string & path, const std::vector<double> & values,
-            const std::vector<std::string> & names)
+  // 发送多分量数据到同一张曲线图:整体记到 <path> 一个 entity,Viewer 里是同一图内的多条 series
+  // (分量数须逐帧一致,如四元数 4 条)。
+  void data(const std::string & path, const std::vector<double> & values)
   {
 #if defined(RM_DEBUG)
-    if (!active_ || values.empty() || values.size() != names.size())
+    if (!active_ || values.empty())
     {
       return;
     }
-    for (std::size_t i = 0; i < values.size(); ++i)
-    {
-      stream_->log(path + "/" + names[i], rerun::Scalars(rerun::Scalar(values[i])));
-    }
+    stream_->log(path, rerun::Scalars(values));
 #else
     (void)path;
     (void)values;
-    (void)names;
+#endif
+  }
+
+  // 发送一帧视频样本
+  void video(const std::string & path, std::vector<std::uint8_t> data, bool keyframe)
+  {
+#if defined(RM_DEBUG)
+    if (!active_ || data.empty())
+    {
+      return;
+    }
+    if (video_codec_paths_.insert(path).second)
+    {
+      stream_->log_static(path, rerun::archetypes::VideoStream().with_codec(
+                                   rerun::components::VideoCodec::H264));
+    }
+    rerun::components::VideoSample sample(
+        rerun::Collection<std::uint8_t>::take_ownership(std::move(data)));
+    stream_->log(path, rerun::archetypes::VideoStream()
+                           .with_sample(sample)
+                           .with_is_keyframe(keyframe));
+#else
+    (void)path;
+    (void)data;
+    (void)keyframe;
 #endif
   }
 
@@ -296,6 +292,7 @@ private:
 
 #if defined(RM_DEBUG)
   std::unique_ptr<rerun::RecordingStream> stream_;
+  std::set<std::string> video_codec_paths_;
 #endif
 };
 

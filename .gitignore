@@ -15,9 +15,6 @@ install_manifest.txt
 .ninja_log
 Makefile
 
-# OpenCV source build (build_opencv.sh)
-opencv-build/
-
 # Editors / IDE
 .vscode/
 .idea/
