@@ -15,8 +15,8 @@ namespace hardware::hikcamera
 namespace
 {
 // SDK 内部缓存节点数(必须在开始取流前设置)。
-// 配合 LatestImagesOnly 策略:只保留最新帧,给转换期间留 1 帧余量即可。
-constexpr unsigned int NODE_NUM = 2;
+// 配合 LatestImagesOnly 策略:只保留最新一帧即可(与已验证可用的旧驱动一致)。
+constexpr unsigned int NODE_NUM = 1;
 // 单次取图超时(毫秒)。
 constexpr unsigned int GRAB_TIMEOUT_MS = 200;
 
@@ -60,19 +60,21 @@ bool is_mono(MvGvspPixelType type)
 }
 
 // Bayer8 -> BGR 的 OpenCV 转换码;非 Bayer8 返回 -1。
+// SDK 的 Bayer 命名与 OpenCV 的转换码是对调的(RG↔BG、GR↔GB):
+// OpenCV 的 COLOR_BayerBG2BGR 对应 RGGB 阵列、COLOR_BayerRG2BGR 对应 BGGR 阵列。
 int bayer_code(MvGvspPixelType type, DemosaicQuality quality)
 {
     const bool ea = quality == DemosaicQuality::EdgeAware;
     switch (type)
     {
     case PixelType_Gvsp_BayerGR8:
-        return ea ? cv::COLOR_BayerGR2BGR_EA : cv::COLOR_BayerGR2BGR;
-    case PixelType_Gvsp_BayerRG8:
-        return ea ? cv::COLOR_BayerRG2BGR_EA : cv::COLOR_BayerRG2BGR;
-    case PixelType_Gvsp_BayerGB8:
         return ea ? cv::COLOR_BayerGB2BGR_EA : cv::COLOR_BayerGB2BGR;
-    case PixelType_Gvsp_BayerBG8:
+    case PixelType_Gvsp_BayerRG8:
         return ea ? cv::COLOR_BayerBG2BGR_EA : cv::COLOR_BayerBG2BGR;
+    case PixelType_Gvsp_BayerGB8:
+        return ea ? cv::COLOR_BayerGR2BGR_EA : cv::COLOR_BayerGR2BGR;
+    case PixelType_Gvsp_BayerBG8:
+        return ea ? cv::COLOR_BayerRG2BGR_EA : cv::COLOR_BayerRG2BGR;
     default:
         return -1;
     }
@@ -189,42 +191,55 @@ void HikCamera::open()
 
 void HikCamera::configure()
 {
+    // 每一项都检查返回值:静默失败的设置会让相机停在未知状态
     // 连续采集
-    MV_CC_SetEnumValue(handle_, "TriggerMode", MV_TRIGGER_MODE_OFF);
+    check(MV_CC_SetEnumValue(handle_, "TriggerMode", MV_TRIGGER_MODE_OFF), "set trigger mode");
     // 曝光与增益与白平衡配置。
-    MV_CC_SetEnumValue(handle_, "ExposureAuto", MV_EXPOSURE_AUTO_MODE_OFF);
-    MV_CC_SetFloatValue(handle_, "ExposureTime", config_.exposure_us);
-    MV_CC_SetEnumValue(handle_, "GainAuto", MV_GAIN_MODE_OFF);
-    MV_CC_SetFloatValue(handle_, "Gain", config_.gain_db);
+    check(MV_CC_SetEnumValue(handle_, "ExposureAuto", MV_EXPOSURE_AUTO_MODE_OFF), "disable auto exposure");
+    check(MV_CC_SetFloatValue(handle_, "ExposureTime", static_cast<float>(config_.exposure_us)), "set exposure time");
+    check(MV_CC_SetEnumValue(handle_, "GainAuto", MV_GAIN_MODE_OFF), "disable auto gain");
+    check(MV_CC_SetFloatValue(handle_, "Gain", static_cast<float>(config_.gain_db)), "set gain");
     // 白平衡固定关闭。
-    MV_CC_SetEnumValue(handle_, "BalanceWhiteAuto", MV_BALANCEWHITE_AUTO_OFF);
+    check(MV_CC_SetEnumValue(handle_, "BalanceWhiteAuto", MV_BALANCEWHITE_AUTO_OFF), "disable auto white balance");
     // 帧率:framerate>0 时启用并设为目标值,否则不限制、跑相机最大帧率。
     if (config_.framerate > 0.0)
     {
-        MV_CC_SetBoolValue(handle_, "AcquisitionFrameRateEnable", true);
-        MV_CC_SetFloatValue(handle_, "AcquisitionFrameRate", config_.framerate);
+        check(MV_CC_SetBoolValue(handle_, "AcquisitionFrameRateEnable", true), "enable frame rate");
+        check(MV_CC_SetFloatValue(handle_, "AcquisitionFrameRate", static_cast<float>(config_.framerate)), "set frame rate");
     }
     else
     {
-        MV_CC_SetBoolValue(handle_, "AcquisitionFrameRateEnable", false);
+        check(MV_CC_SetBoolValue(handle_, "AcquisitionFrameRateEnable", false), "disable frame rate limit");
     }
-    // 相机侧裁切
+
+    // 相机侧裁切;不开 ROI 时显式回到全幅,避免相机里残留的 ROI 让画面异常。
+    MVCC_INTVALUE_EX size{};
     if (config_.roi.enable)
     {
-        MV_CC_SetIntValue(handle_, "OffsetX", static_cast<unsigned int>(config_.roi.x));
-        MV_CC_SetIntValue(handle_, "OffsetY", static_cast<unsigned int>(config_.roi.y));
+        check(MV_CC_SetIntValueEx(handle_, "OffsetX", config_.roi.x), "set roi offset x");
+        check(MV_CC_SetIntValueEx(handle_, "OffsetY", config_.roi.y), "set roi offset y");
         if (config_.roi.width > 0)
         {
-            MV_CC_SetIntValue(handle_, "Width", static_cast<unsigned int>(config_.roi.width));
+            check(MV_CC_SetIntValueEx(handle_, "Width", config_.roi.width), "set roi width");
         }
         if (config_.roi.height > 0)
         {
-            MV_CC_SetIntValue(handle_, "Height", static_cast<unsigned int>(config_.roi.height));
+            check(MV_CC_SetIntValueEx(handle_, "Height", config_.roi.height), "set roi height");
         }
     }
-    MV_CC_SetImageNodeNum(handle_, NODE_NUM);
+    else
+    {
+        check(MV_CC_SetIntValueEx(handle_, "OffsetX", 0), "reset roi offset x");
+        check(MV_CC_SetIntValueEx(handle_, "OffsetY", 0), "reset roi offset y");
+        check(MV_CC_GetIntValueEx(handle_, "WidthMax", &size), "get width max");
+        check(MV_CC_SetIntValueEx(handle_, "Width", size.nCurValue), "reset roi width");
+        check(MV_CC_GetIntValueEx(handle_, "HeightMax", &size), "get height max");
+        check(MV_CC_SetIntValueEx(handle_, "Height", size.nCurValue), "reset roi height");
+    }
+
+    check(MV_CC_SetImageNodeNum(handle_, NODE_NUM), "set image node num");
     // 只取最新帧。
-    MV_CC_SetGrabStrategy(handle_, MV_GrabStrategy_LatestImagesOnly);
+    check(MV_CC_SetGrabStrategy(handle_, MV_GrabStrategy_LatestImagesOnly), "set grab strategy");
 }
 
 void HikCamera::close() noexcept
