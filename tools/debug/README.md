@@ -41,7 +41,7 @@ tools::debug::Sink debug("rm_vision.infantry", "rerun+http://<开发机IP>:9876/
 | `data(path, value)` | 发送单个标量,Viewer 中是一条曲线。 |
 | `data(path, values)` | 发送多分量,整体记到 `<path>` 一个 entity,Viewer 中是同一张图内的多条曲线。 |
 | `video(path, data, keyframe)` | 发送一帧 H.264 视频样本(Annex B 访问单元),`keyframe` 表示 IDR。 |
-| `log(level, message [, path])` | 发送带等级的文本日志,`Level` 有 `debug/info/warn/error`。 |
+| `log(level, message [, path])` | 日志:控制台 + Rerun (`Level` 有 `debug/info/warn/error`)。 |
 
 主循环里典型用法:
 
@@ -56,6 +56,10 @@ debug.log(tools::debug::Level::warn, "target lost");          // 带等级日志
 - `set_frame` 建议在主循环开头调用一次。Viewer 里可以拖时间轴逐帧回放,配合曲线对比。
 - 路径推荐按模块分层,例如 `camera/image`、`det/boxes`、`ekf/yaw`、`shoot/decision`。
 - 未定义 `RM_DEBUG` 时以上调用全部是空操作,参数甚至不会被求值之外地使用。
+
+## 日志:控制台 + Rerun 同步
+
+`Sink::log(level, message [, path])` 默认:始终打印到控制台(`debug/info` → stdout,`warn/error` → stderr),Viewer 可用时同一条消息一并发往Rerun。
 
 
 ## 使用步骤

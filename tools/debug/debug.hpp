@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <iostream>
 #include <memory>
 #include <set>
 #include <string>
@@ -34,6 +35,29 @@ enum class Level : std::uint8_t
     warn,
     error
 };
+
+class Sink;
+
+// 进程内的日志出口:Sink 构造时登记、析构时注销,供自由函数 log() 转发到 Rerun。
+namespace detail
+{
+inline Sink *&global_sink()
+{
+    static Sink *sink = nullptr;
+    return sink;
+}
+
+// 统一的控制台格式:debug/info 走 stdout,warn/error 走 stderr。
+inline void print_console(Level level, const std::string &message)
+{
+    std::ostream &out = (level == Level::warn || level == Level::error) ? std::cerr : std::cout;
+    out << message << '\n' << std::flush;
+}
+} // namespace detail
+
+// 统一日志出口:始终打印到控制台(debug/info -> stdout,warn/error -> stderr),
+// 进程内存在活动 Sink 时同步转发到 Rerun(path 是 Rerun 里的实体路径)。
+inline void log(Level level, const std::string &message, const std::string &path = "log");
 
 #if defined(RM_DEBUG)
 // ---------------------------------------------------------------------------
@@ -167,10 +191,22 @@ class Sink
             stream_ = std::make_unique<rerun::RecordingStream>(application_id);
             active_ = stream_->connect_grpc(address).is_ok();
         }
+        if (active_)
+        {
+            detail::global_sink() = this;
+        }
 #else
         (void)application_id;
         (void)address;
 #endif
+    }
+
+    ~Sink()
+    {
+        if (detail::global_sink() == this)
+        {
+            detail::global_sink() = nullptr;
+        }
     }
 
     Sink(const Sink &)            = delete;
@@ -280,9 +316,10 @@ class Sink
 #endif
     }
 
-    // 发送一条带等级的日志。path 是日志在 Viewer 中的实体路径,默认即可。
+    // 始终打印到控制台,Viewer 可用时同时发往 Rerun,path 是 Rerun 里的实体路径;控制台忽略它。
     void log(Level level, const std::string &message, const std::string &path = "log")
     {
+        detail::print_console(level, message);
 #if defined(RM_DEBUG)
         if (!active_)
         {
@@ -290,8 +327,6 @@ class Sink
         }
         stream_->log(path, rerun::TextLog(message).with_level(detail::to_rerun_level(level)));
 #else
-        (void)level;
-        (void)message;
         (void)path;
 #endif
     }
@@ -305,5 +340,16 @@ class Sink
     std::set<std::string>                   video_codec_paths_;
 #endif
 };
+
+inline void log(Level level, const std::string &message, const std::string &path)
+{
+    // 有 Sink 时交给它(控制台 + Rerun);没有 Sink 时只打控制台。
+    if (Sink *sink = detail::global_sink())
+    {
+        sink->log(level, message, path);
+        return;
+    }
+    detail::print_console(level, message);
+}
 
 } // namespace tools::debug

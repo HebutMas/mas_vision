@@ -1,6 +1,7 @@
 #include "hardware/serialport/serialport.hpp"
 
 #include "tools/algorithm/crc16.hpp"
+#include "tools/debug/debug.hpp"
 
 #include <array>
 #include <cerrno>
@@ -203,7 +204,7 @@ void SerialPort::send(const SendPacket &packet)
     frame[FRAME_TX_SIZE - 1] = static_cast<std::uint8_t>(crc >> 8);
 
     std::scoped_lock const lock(fd_mutex_);
-    const int                   fd = fd_.load();
+    const int              fd = fd_.load();
     if (fd < 0)
     {
         return;
@@ -297,13 +298,15 @@ bool SerialPort::serialread()
 
     if (config_.debug && n > 0)
     {
-        // 打印本次收到的原始字节,便于定位帧头 / CRC 问题。
-        std::fprintf(stderr, "serial rx:");
+        // 打印本次收到的原始字节,便于定位帧头 / CRC 问题(同时进 Rerun)。
+        std::string dump = "serial rx:";
         for (ssize_t i = 0; i < n; ++i)
         {
-            std::fprintf(stderr, " %02X", buffer[i]);
+            char byte[8];
+            std::snprintf(byte, sizeof(byte), " %02X", buffer[i]);
+            dump += byte;
         }
-        std::fputc('\n', stderr);
+        tools::debug::log(tools::debug::Level::debug, dump);
     }
 
     for (ssize_t i = 0; i < n; ++i)
