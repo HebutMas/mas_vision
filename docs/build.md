@@ -146,9 +146,9 @@ rerun --serve-web --bind 0.0.0.0 --port 9876   # 浏览器打开 http://<开发�
 
 ```bash
 # Debian / Ubuntu
-sudo apt-get install -y libavcodec-dev libavutil-dev libva-dev mesa-va-drivers
+sudo apt-get install -y libavcodec-dev libavutil-dev libva-dev mesa-va-drivers ffmpeg
 # Fedora
-sudo dnf install -y ffmpeg-devel libva-devel
+sudo dnf install -y ffmpeg-devel libva-devel ffmpeg
 ```
 
 ## 配置与构建
