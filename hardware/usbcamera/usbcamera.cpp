@@ -1,4 +1,5 @@
 #include "hardware/usbcamera/usbcamera.hpp"
+#include "tools/debug/debug.hpp"
 
 #include <chrono>
 #include <stdexcept>
@@ -29,6 +30,10 @@ int to_fourcc(const std::string &code)
 UsbCamera::UsbCamera(UsbCameraConfig config) : config_(std::move(config))
 {
     open();
+    const int width  = static_cast<int>(capture_.get(cv::CAP_PROP_FRAME_WIDTH));
+    const int height = static_cast<int>(capture_.get(cv::CAP_PROP_FRAME_HEIGHT));
+    tools::debug::log(tools::debug::Level::info,
+                      "usbcamera connected: " + config_.device_path + " " + std::to_string(width) + "x" + std::to_string(height), "usbcamera");
     thread_ = std::thread(&UsbCamera::run, this);
 }
 
@@ -50,6 +55,7 @@ void UsbCamera::open()
     // 固定 V4L2 后端,避免 OpenCV 回退到 GStreamer 带来的不确定性。
     if (!capture_.open(config_.device_path, cv::CAP_V4L2))
     {
+        tools::debug::log(tools::debug::Level::error, "usbcamera open failed: " + config_.device_path, "usbcamera");
         throw std::runtime_error("UsbCamera 无法打开 " + config_.device_path);
     }
     configure();
@@ -101,9 +107,19 @@ void UsbCamera::run()
         // read 返回后立即记录出流时刻。
         if (!capture_.read(image) || image.empty())
         {
+            if (stream_ok_)
+            {
+                stream_ok_ = false;
+                tools::debug::log(tools::debug::Level::warn, "usbcamera read failed: " + config_.device_path, "usbcamera");
+            }
             // 掉帧或设备异常:退避后重试,避免空转。
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
             continue;
+        }
+        if (!stream_ok_)
+        {
+            stream_ok_ = true;
+            tools::debug::log(tools::debug::Level::info, "usbcamera capture recovered", "usbcamera");
         }
         const TimePoint stamp = tools::time::now();
         frames_.push(UsbFrame{image.clone(), stamp});

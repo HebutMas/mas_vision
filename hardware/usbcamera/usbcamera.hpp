@@ -81,6 +81,8 @@ class UsbCamera
     std::thread       thread_;      // 采集线程。
     std::atomic<bool> quit_{false}; // 采集线程退出标志。
 
+    bool stream_ok_{true}; // 上一次 read 是否成功
+
     tools::LatestFrame<UsbFrame> frames_; // 采集线程 -> 消费者的最新帧槽。
 };
 

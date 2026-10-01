@@ -109,6 +109,10 @@ class HikCamera
     std::thread       thread_;      // 采集线程。
     std::atomic<bool> quit_{false}; // 采集线程退出标志。
 
+    // 采集线程的日志状态
+    bool capture_ok_{true};          // 上一次取流 + 转换是否成功。
+    bool first_frame_logged_{false}; // 首帧是否已打过日志。
+
     tools::LatestFrame<HikFrame> frames_; // 最新帧槽。
 };
 

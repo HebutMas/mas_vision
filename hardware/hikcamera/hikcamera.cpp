@@ -1,6 +1,7 @@
 #include "hardware/hikcamera/hikcamera.hpp"
 
 #include "MvCameraControl.h"
+#include "tools/debug/debug.hpp"
 
 #include <opencv2/imgproc.hpp>
 
@@ -180,6 +181,10 @@ void HikCamera::open()
         check_usb3(*device);
         configure();
         check(MV_CC_StartGrabbing(handle_), "MV_CC_StartGrabbing");
+        tools::debug::log(tools::debug::Level::info,
+                          "hikcamera connected: serial=" +
+                              std::string(reinterpret_cast<const char *>(device->SpecialInfo.stUsb3VInfo.chSerialNumber)),
+                          "hikcamera");
     }
     catch (...)
     {
@@ -239,7 +244,7 @@ void HikCamera::configure()
     check(MV_CC_SetImageNodeNum(handle_, NODE_NUM), "set image node num");
     // 只取最新帧。
     check(MV_CC_SetGrabStrategy(handle_, MV_GrabStrategy_LatestImages), "set grab strategy");
-    //check(MV_CC_SetOutputQueueSize(handle_, 1), "set output queue size");
+    // check(MV_CC_SetOutputQueueSize(handle_, 1), "set output queue size");
 }
 
 void HikCamera::close() noexcept
@@ -266,20 +271,48 @@ void HikCamera::run()
         }
         if (code != MV_OK)
         {
+            if (capture_ok_)
+            {
+                capture_ok_ = false;
+                tools::debug::log(tools::debug::Level::warn, "hikcamera grab failed: " + error_text(code), "hikcamera");
+            }
             // 超时或设备异常:退避后重试,避免空转。
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
             continue;
         }
 
         // 取出原始数据后立即记录出流时刻。
-        const TimePoint stamp = tools::time::now();
-        cv::Mat         frame = to_cv(handle_, raw, config_.demosaic);
+        const TimePoint stamp      = tools::time::now();
+        const int       width      = raw.stFrameInfo.nWidth;
+        const int       height     = raw.stFrameInfo.nHeight;
+        const auto      pixel_type = static_cast<unsigned int>(raw.stFrameInfo.enPixelType);
+        cv::Mat         frame      = to_cv(handle_, raw, config_.demosaic);
         MV_CC_FreeImageBuffer(handle_, &raw);
 
-        if (!frame.empty())
+        if (frame.empty())
         {
-            frames_.push(HikFrame{std::move(frame), stamp});
+            if (capture_ok_)
+            {
+                capture_ok_ = false;
+                tools::debug::log(tools::debug::Level::warn, "hikcamera convert failed: pixel_type=" + error_text(pixel_type), "hikcamera");
+            }
+            continue;
         }
+        if (!capture_ok_)
+        {
+            capture_ok_ = true;
+            tools::debug::log(tools::debug::Level::info, "hikcamera capture recovered", "hikcamera");
+        }
+        if (!first_frame_logged_)
+        {
+            first_frame_logged_ = true;
+            tools::debug::log(tools::debug::Level::info,
+                              "hikcamera first frame: " + std::to_string(width) + "x" + std::to_string(height) +
+                                  " pixel_type=" + error_text(pixel_type),
+                              "hikcamera");
+        }
+
+        frames_.push(HikFrame{std::move(frame), stamp});
     }
 }
 

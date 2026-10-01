@@ -85,6 +85,10 @@ SerialPort::SerialPort(const tools::config::Config &config)
     }
 
     open();
+    if (!is_open())
+    {
+        tools::debug::log(tools::debug::Level::warn, "serial connect failed: " + config_.port + ", retrying", "serial");
+    }
     thread_ = std::thread(&SerialPort::run, this);
 }
 
@@ -187,6 +191,14 @@ bool SerialPort::open() noexcept
     rx_len_ = 0;     // 丢弃上一条链路的半帧。
     frames_.clear(); // 新连接:丢弃旧链路的收帧与姿态历史。
     imu_.clear();
+    try
+    {
+        tools::debug::log(tools::debug::Level::info, "serial connected: " + config_.port + " @" + std::to_string(config_.baudrate), "serial");
+    }
+    catch (...)
+    {
+        static_cast<void>(0);
+    }
     return true;
 }
 
@@ -222,6 +234,18 @@ void SerialPort::disconnect_locked() noexcept
     if (fd >= 0)
     {
         ::close(fd);
+        if (!quit_)
+        {
+            try
+            {
+                tools::debug::log(tools::debug::Level::warn, "serial disconnected: " + config_.port + ", reconnecting", "serial");
+            }
+            catch (...)
+            {
+                // disconnect_locked() 是 noexcept:日志失败绝不能影响串口本身,静默忽略。
+                static_cast<void>(0);
+            }
+        }
     }
 }
 
