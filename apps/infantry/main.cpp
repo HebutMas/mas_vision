@@ -1,7 +1,6 @@
 #include "apps/infantry/main_debug.hpp"
 #include "hardware/hikcamera/hikcamera.hpp"
 #include "hardware/serialport/serialport.hpp"
-#include "hardware/usbcamera/usbcamera.hpp"
 #include "modules/auto_armor/detection/detector.hpp"
 #include "tools/config/config.hpp"
 #include "tools/exiter/exiter.hpp"
@@ -23,6 +22,8 @@ try
 
     // 远程调试
     infantry::Debug debug("rm_vision.infantry");
+    tools::install_exit_handler();
+    std::int64_t frame = 0;
 
     // 串口通信
     hardware::serialport::SerialPort serial(config);
@@ -33,9 +34,6 @@ try
     // 装甲板检测
     rm::armor::Detector detector(rm::armor::load_detector_config(config));
 
-    tools::install_exit_handler();
-
-    std::int64_t frame = 0;
     while (!tools::should_exit())
     {
         // 串口数据

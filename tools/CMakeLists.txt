@@ -63,4 +63,15 @@ if(RM_DEBUG)
   target_link_libraries(video_test PRIVATE tools ${OpenCV_LIBS})
   add_test(NAME video COMMAND video_test)
   set_tests_properties(video PROPERTIES TIMEOUT 60)
+
+  # 录制
+  add_library(rm_record STATIC debug/record/record.cpp)
+  target_include_directories(rm_record PUBLIC ${PROJECT_SOURCE_DIR})
+  target_link_libraries(rm_record PUBLIC rm_debug ${OpenCV_LIBS})
+  target_link_libraries(tools INTERFACE rm_record)
+
+  add_executable(record_test debug/record/test.cpp)
+  target_link_libraries(record_test PRIVATE tools ${OpenCV_LIBS})
+  add_test(NAME record COMMAND record_test)
+  set_tests_properties(record PROPERTIES TIMEOUT 60)
 endif()

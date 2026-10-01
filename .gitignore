@@ -32,7 +32,6 @@ Makefile
 
 # Runtime output
 logs/
-record/
 *.log
 *.avi
 *.mp4
