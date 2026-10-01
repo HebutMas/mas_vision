@@ -156,7 +156,9 @@ set(APPS infantry)
 cmake --build build -j4
 ctest --test-dir build --output-on-failure
 ```
-测试在缺少硬件时自动跳过(无相机、无 `/dev/ttyACM0`、无 `/dev/dri/renderD128` 时不判失败)。
+测试在缺少硬件时自动跳过(无相机、无 `/dev/ttyACM0`、无 VAAPI 渲染节点时不判失败)。
+渲染节点由 `tools::video::find_vaapi_device()` 按 DRM 驱动自动探测(见
+[`tools/debug/README.md`](../tools/debug/README.md)),不写死 `renderD128`。
 
 ## 运行
 

@@ -8,6 +8,13 @@
 #include <stdexcept>
 #include <utility>
 
+#include <algorithm>
+#include <filesystem>
+#include <string>
+#include <system_error>
+#include <unistd.h>
+#include <vector>
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/hwcontext.h>
@@ -26,7 +33,88 @@ std::string av_error(int code)
   av_strerror(code, buffer, sizeof(buffer));
   return buffer;
 }
+
+// 这些内核驱动背后有可用的 VAAPI 用户态驱动:i915 走 iHD、amdgpu 走 Mesa、xe 是新版
+// Intel 驱动。NVIDIA 没有 VAAPI 后端,所以 nvidia 节点必须排除。
+bool supports_vaapi(const std::string & driver)
+{
+  return driver == "i915" || driver == "amdgpu" || driver == "xe" || driver == "radeon";
+}
+
+// "renderD128" -> 128;不是渲染节点返回 -1。
+int render_node_index(const std::string & name)
+{
+  if (name.rfind("renderD", 0) != 0)
+  {
+    return -1;
+  }
+  try
+  {
+    return std::stoi(name.substr(7));
+  }
+  catch (const std::exception &)
+  {
+    return -1;
+  }
+}
+
+// 某个目录下所有渲染节点的 <编号, 路径>,按编号升序。目录不存在时返回空。
+std::vector<std::pair<int, std::string>> render_nodes(const std::string & directory)
+{
+  std::vector<std::pair<int, std::string>> nodes;
+  std::error_code                          error;
+  for (const auto & entry : std::filesystem::directory_iterator(directory, error))
+  {
+    const std::string name  = entry.path().filename().string();
+    const int         index = render_node_index(name);
+    if (index >= 0)
+    {
+      nodes.emplace_back(index, entry.path().string());
+    }
+  }
+  std::sort(nodes.begin(), nodes.end(),
+            [](const auto & lhs, const auto & rhs) { return lhs.first < rhs.first; });
+  return nodes;
+}
 } // namespace
+
+std::string find_vaapi_device()
+{
+  // 1. 按 sysfs 里绑定的内核驱动,挑出有能力做 VAAPI 的节点。
+  std::vector<std::pair<int, std::string>> supported;
+  for (const auto & [index, sysfs_path] : render_nodes("/sys/class/drm"))
+  {
+    std::error_code   error;
+    const auto        driver_link = std::filesystem::read_symlink(sysfs_path + "/device/driver", error);
+    const std::string driver      = driver_link.filename().string();
+    if (!error && supports_vaapi(driver))
+    {
+      supported.emplace_back(index, "/dev/dri/renderD" + std::to_string(index));
+    }
+  }
+
+  // 2. 优先选 /dev 节点确实存在的那个。容器 / sandbox 里 /dev/dri 可能没挂进来,这时仍
+  //    返回探测到的节点,好让报错信息指向正确的设备,而不是编号最小的那个。
+  for (const auto & candidate : supported)
+  {
+    if (::access(candidate.second.c_str(), F_OK) == 0)
+    {
+      return candidate.second;
+    }
+  }
+  if (!supported.empty())
+  {
+    return supported.front().second;
+  }
+
+  // 3. 驱动认不出来(内核模块改名等):退回第一个存在的渲染节点,再不行用历史默认值。
+  const auto present = render_nodes("/dev/dri");
+  if (!present.empty())
+  {
+    return present.front().second;
+  }
+  return "/dev/dri/renderD128";
+}
 
 struct VideoEncoder::Impl
 {
@@ -148,6 +236,11 @@ struct VideoEncoder::Impl
 VideoEncoder::VideoEncoder(const VideoEncoderConfig & config) : impl_(std::make_unique<Impl>())
 {
   impl_->config = config;
+  // 留空表示自动探测:双显卡机器上 renderD128 可能是没有 VAAPI 后端的 NVIDIA 节点。
+  if (impl_->config.device.empty())
+  {
+    impl_->config.device = find_vaapi_device();
+  }
 
   impl_->codec = avcodec_find_encoder_by_name("h264_vaapi");
   if (impl_->codec == nullptr)
@@ -183,10 +276,11 @@ VideoEncoder::VideoEncoder(const VideoEncoderConfig & config) : impl_(std::make_
   av_opt_set_int(ctx->priv_data, "async_depth", config.async_depth, 0);
 
   int ret = av_hwdevice_ctx_create(&impl_->hw_device, AV_HWDEVICE_TYPE_VAAPI,
-                                   config.device.c_str(), nullptr, 0);
+                                   impl_->config.device.c_str(), nullptr, 0);
   if (ret < 0)
   {
-    throw std::runtime_error("video encoder: VAAPI device " + config.device + " failed: " + av_error(ret));
+    throw std::runtime_error("video encoder: VAAPI device " + impl_->config.device + " failed: " +
+                             av_error(ret));
   }
 
   impl_->hw_frames = av_hwframe_ctx_alloc(impl_->hw_device);

@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstdint>
 #include <iostream>
+#include <string>
 #include <vector>
 
 #include <unistd.h>
@@ -50,8 +51,9 @@ namespace
 
 int main()
 {
-  const char * device = "/dev/dri/renderD128";
-  if (::access(device, F_OK) != 0)
+  // 与编码器用同一套探测:双显卡机器上 renderD128 可能是不支持 VAAPI 的 NVIDIA 节点。
+  const std::string device = tools::video::find_vaapi_device();
+  if (::access(device.c_str(), F_OK) != 0)
   {
     std::cout << "video test skipped: " << device << " not present\n";
     return 0;
@@ -63,6 +65,7 @@ int main()
   config.fps     = 50;
   config.bitrate = 4'000'000;
   config.gop     = 50;
+  config.device  = device;
 
   tools::video::VideoEncoder encoder(config);
 

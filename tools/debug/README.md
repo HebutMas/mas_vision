@@ -116,5 +116,19 @@ cmake --build build -j4
 **首次安装 SDK 卡在 Arrow / xsimd**
 安装 Rerun SDK 时其 CMake 会先下载并编译 Arrow 与 xsimd,看下载进度即可。
 
+**video 测试报 `VAAPI device /dev/dri/renderD128 failed: Input/output error`**
+渲染节点编号由驱动注册顺序决定,双显卡机器上 NVIDIA 的 `nvidia-drm` 常常先抢到
+`renderD128`;而 VAAPI 没有 NVIDIA 后端,拿它初始化必然失败(表现为 libva 报
+`-1 (unknown libva error)`)。编码器默认自动探测节点:`find_vaapi_device()` 读
+`/sys/class/drm/renderD*/device/driver`,挑绑定 i915 / amdgpu / xe 的那个。想确认本机
+哪个节点可用,装 `libva-utils` 后逐个试:
+
+```bash
+for d in /sys/class/drm/renderD*; do echo "$d -> $(basename $(readlink -f $d/device/driver))"; done
+vainfo --display drm --device /dev/dri/renderD129   # 换成上一步里 driver=i915 的节点
+```
+
+也可以直接指定,绕过探测:`VideoEncoderConfig::device = "/dev/dri/renderD129";`。
+
 **Viewer 打开后一片空白**
 确认机器人进程真的在发数据(`Sink::active()` 为 true),以及浏览器连的是同一台 Viewer。
