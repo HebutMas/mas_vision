@@ -14,9 +14,12 @@ namespace hardware::hikcamera
 {
 namespace
 {
-// SDK 内部缓存节点数(必须在开始取流前设置)。
-// 配合 LatestImagesOnly 策略:只保留最新一帧即可(与已验证可用的旧驱动一致)。
-constexpr unsigned int NODE_NUM = 1;
+// SDK 内部缓存节点数(必须在开始取流前设置)。SDK 文档写明该值默认为 1。
+//
+// 取流循环里 to_cv() 直接读 SDK 缓冲,转换完才 MV_CC_FreeImageBuffer()。节点数为 1 时
+// SDK 只有这一块缓冲可用,转换期间它若需要装下一帧,就只能复用这块正在读的内存,表现为
+// 偶发花屏 / 撕裂。留 3 块给转换留出周转余量。
+constexpr unsigned int NODE_NUM = 3;
 // 单次取图超时(毫秒)。
 constexpr unsigned int GRAB_TIMEOUT_MS = 200;
 
@@ -239,7 +242,12 @@ void HikCamera::configure()
 
     check(MV_CC_SetImageNodeNum(handle_, NODE_NUM), "set image node num");
     // 只取最新帧。
-    check(MV_CC_SetGrabStrategy(handle_, MV_GrabStrategy_LatestImagesOnly), "set grab strategy");
+    //
+    // 注意 OutputQueueSize(1) 使 LatestImages 等价于 LatestImagesOnly —— SDK 文档原话:
+    // 「OutputQueueSize 设置成 1 等同于 LatestImagesOnly 策略」。所以相对改动前真正生效的
+    // 只有上面的 ImageNodeNum(1 -> 3),取流策略语义没变:仍是只取最新一帧并清空缓存。
+    check(MV_CC_SetGrabStrategy(handle_, MV_GrabStrategy_LatestImages), "set grab strategy");
+    check(MV_CC_SetOutputQueueSize(handle_, 1), "set output queue size");
 }
 
 void HikCamera::close() noexcept
