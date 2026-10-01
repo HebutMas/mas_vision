@@ -6,7 +6,10 @@ foreach(app ${APPS})
   endif()
 
   add_executable(${app} ${app}/main.cpp)
-  target_link_libraries(${app} PRIVATE tools hardware ${OpenCV_LIBS})
+  if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${app}/main_debug.cpp)
+    target_sources(${app} PRIVATE ${app}/main_debug.cpp)
+  endif()
+  target_link_libraries(${app} PRIVATE tools hardware auto_armor_detection ${OpenCV_LIBS})
   # 配置默认走绝对路径,这样从任意目录运行都能找到 apps/<app>/config.yaml。
   target_compile_definitions(${app} PRIVATE RM_CONFIG_PATH="${CMAKE_SOURCE_DIR}/apps/${app}/config.yaml")
 endforeach()

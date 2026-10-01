@@ -25,12 +25,25 @@ usbcamera:
   height: 720
   fps: 30
   fourcc: MJPG # MJPG/YUYV
-  auto_exposure: 1 # 0=自动,1=手动
+  auto_exposure: 0 # 0=自动,1=手动
   exposure: 50 # 仅手动模式
   gain: 20 # 仅手动模式
-  auto_wb: 0 # 0=禁用,1=启用
+  auto_wb: 1 # 0=禁用,1=启用
 detector:
-  algorithm: null
+  model: modules/auto_armor/models/shenzhen-0526.onnx # 相对仓库根目录
+  device: CPU
+  input: [640, 640]
+  min_confidence: 0.5
+  score_threshold: 0.7
+  nms_threshold: 0.3
+  roi: {enable: false, x: 420, y: 50, width: 600, height: 600}
+  green_light: # 前哨站/基地绿灯滤除
+    enable: true
+    green_threshold: 120
+    min_area: 20
+    min_circularity: 0.6
+    max_aspect_ratio: 1.5
+  enemy_color: "" # 颜色判断，空代表都识别
 track:
   algorithm: null
 shoot:

@@ -1,24 +1,16 @@
+#include "apps/infantry/main_debug.hpp"
 #include "hardware/hikcamera/hikcamera.hpp"
 #include "hardware/serialport/serialport.hpp"
+#include "hardware/usbcamera/usbcamera.hpp"
+#include "modules/auto_armor/detection/detector.hpp"
 #include "tools/config/config.hpp"
-#include "tools/debug/debug.hpp"
 #include "tools/exiter/exiter.hpp"
-#include "tools/time/time.hpp"
-
-#ifdef RM_DEBUG
-#include "tools/debug/video/video_encoder.hpp"
-#endif
 
 #include <chrono>
 #include <cstdint>
 #include <exception>
-#include <iostream>
 #include <string>
 #include <thread>
-
-#ifdef RM_DEBUG
-#include <memory>
-#endif
 
 int main(int argc, char **argv)
 try
@@ -29,78 +21,51 @@ try
     const std::string           path = RM_CONFIG_PATH;
     const tools::config::Config config(path);
 
-    // 串口通信
-   // hardware::serialport::SerialPort serial(config);
-
-    // hikcamera相机
-    hardware::hikcamera::HikCamera camera(hardware::hikcamera::load_hikcamera_config(config));
-
     // 远程调试
-    tools::debug::Sink debug("rm_vision.infantry");
+    infantry::Debug debug("rm_vision.infantry");
+
+    // 串口通信
+    hardware::serialport::SerialPort serial(config);
+
+    // hikcamera 相机
+    hardware::hikcamera::HikCamera hikcamera(hardware::hikcamera::load_hikcamera_config(config));
+
+    // 装甲板检测
+    rm::armor::Detector detector(rm::armor::load_detector_config(config));
+
     tools::install_exit_handler();
 
     std::int64_t frame = 0;
-#ifdef RM_DEBUG
-    std::unique_ptr<tools::video::VideoEncoder> encoder;
-#endif
-
     while (!tools::should_exit())
     {
-        // hardware::serialport::ReceivePacket state{};
-        // if (serial.frames().try_pop(state))
-        // {
-        //     // debug输出
-        //     if (debug.active())
-        //     {
-        //         const Eigen::Quaternionf q = state.quaternion();
-        //         debug.set_frame(frame++);
-        //         debug.set_time("time", tools::time::since_base(tools::time::now()));
-        //         debug.data("serial/mode", state.mode);
-        //         debug.data("serial/quaternion", {q.w(), q.x(), q.y(), q.z()});
-        //     }
-        // }
-
-        // 相机:取最新一帧
-        hardware::hikcamera::HikFrame hik_frame;
-        if (camera.frames().try_pop(hik_frame) && !hik_frame.image.empty())
+        // 串口数据
+        hardware::serialport::ReceivePacket state{};
+        if (!serial.is_open() || !serial.frames().try_pop(state))
         {
-#ifdef RM_DEBUG
-            if (debug.active())
-            {
-                try
-                {
-                    if (!encoder)
-                    {
-                        tools::video::VideoEncoderConfig encoder_config;
-                        encoder_config.width  = hik_frame.image.cols;
-                        encoder_config.height = hik_frame.image.rows;
-                        encoder = std::make_unique<tools::video::VideoEncoder>(encoder_config);
-                    }
-                    const auto timestamp = tools::time::since_base(hik_frame.timestamp);
-                    debug.set_frame(frame++);
-                    debug.set_time("time", timestamp);
-                    for (auto &encoded : encoder->encode(hik_frame.image, timestamp))
-                    {
-                        debug.video("camera/image", std::move(encoded.data), encoded.keyframe);
-                    }
-                }
-                catch (const std::exception &error)
-                {
-                    // 无 VAAPI 设备等异常:跳过视频输出,不算失败。
-                    std::cout << "skip camera video output: " << error.what() << "\n";
-                    encoder.reset();
-                }
-            }
-#endif
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        // 图像数据
+        hardware::hikcamera::HikFrame hik_frame;
+        if (!hikcamera.frames().try_pop(hik_frame) || hik_frame.image.empty())
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+        }
+
+        // 识别
+        const rm::armor::Detector::Result detection = detector.detect(hik_frame.image);
+
+        // TODO(track) TODO(fire)
+
+        debug.push(hik_frame.image, frame++, hik_frame.timestamp, state, detection);
     }
 
     return 0;
 }
 catch (const std::exception &error)
 {
-    std::cerr << "infantry exception: " << error.what() << "\n";
+    tools::debug::log(tools::debug::Level::error, std::string("infantry exception: ") + error.what());
     return 1;
 }
