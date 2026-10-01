@@ -7,6 +7,7 @@
 #include <opencv2/core.hpp>
 
 #include <atomic>
+#include <cstdint>
 #include <string>
 #include <thread>
 
@@ -17,10 +18,10 @@ namespace hardware::hikcamera
 using TimePoint = tools::time::TimePoint;
 
 // Bayer 去马赛克质量:bilinear 快;edge_aware 边缘自适应,质量高但更慢。
-enum class DemosaicQuality
+enum class DemosaicQuality : std::uint8_t
 {
-    Bilinear,
-    EdgeAware,
+    bilinear,
+    edge_aware,
 };
 
 // 相机侧裁切(ROI)
@@ -48,13 +49,13 @@ struct HikCameraConfig
     // 相机侧裁切。
     RoiConfig roi;
     // 去马赛克质量。
-    DemosaicQuality demosaic{DemosaicQuality::EdgeAware};
+    DemosaicQuality demosaic{DemosaicQuality::edge_aware};
 };
 
 // 把配置字符串转成去马赛克枚举;未知值回落到 edge_aware。
 [[nodiscard]] inline DemosaicQuality parse_demosaic(const std::string &name)
 {
-    return name == "bilinear" ? DemosaicQuality::Bilinear : DemosaicQuality::EdgeAware;
+    return name == "bilinear" ? DemosaicQuality::bilinear : DemosaicQuality::edge_aware;
 }
 
 // 从配置读取海康相机参数。

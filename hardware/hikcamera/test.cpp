@@ -39,8 +39,8 @@ try
         out.close();
         const auto cfg = hardware::hikcamera::load_hikcamera_config(tools::config::Config(path.string()));
         if (!cfg.serial.empty() || cfg.exposure_us != 5000.0 || cfg.gain_db != 10.0 || cfg.framerate != 0.0 ||
-            cfg.demosaic != hardware::hikcamera::DemosaicQuality::Bilinear || cfg.roi.enable || cfg.roi.x != 0 ||
-            cfg.roi.y != 0 || cfg.roi.width != 0 || cfg.roi.height != 0)
+            cfg.demosaic != hardware::hikcamera::DemosaicQuality::bilinear || cfg.roi.enable || cfg.roi.x != 0 || cfg.roi.y != 0 ||
+            cfg.roi.width != 0 || cfg.roi.height != 0)
         {
             std::cerr << "FAIL: hikcamera config load\n";
             return 1;

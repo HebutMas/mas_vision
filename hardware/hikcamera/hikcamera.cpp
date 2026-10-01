@@ -64,7 +64,7 @@ bool is_mono(MvGvspPixelType type)
 // OpenCV 的 COLOR_BayerBG2BGR 对应 RGGB 阵列、COLOR_BayerRG2BGR 对应 BGGR 阵列。
 int bayer_code(MvGvspPixelType type, DemosaicQuality quality)
 {
-    const bool ea = quality == DemosaicQuality::EdgeAware;
+    const bool ea = quality == DemosaicQuality::edge_aware;
     switch (type)
     {
     case PixelType_Gvsp_BayerGR8:
@@ -104,8 +104,8 @@ cv::Mat to_cv(void *handle, const MV_FRAME_OUT &raw, DemosaicQuality quality)
     }
 
     // 其他格式(YUV / RGB / 高位深 mono 等):SDK 转 8 位,直接写入目标 Mat。
-    const bool mono = is_mono(info.enPixelType);
-    cv::Mat    dst(height, width, mono ? CV_8UC1 : CV_8UC3);
+    const bool                mono = is_mono(info.enPixelType);
+    cv::Mat                   dst(height, width, mono ? CV_8UC1 : CV_8UC3);
     MV_CC_PIXEL_CONVERT_PARAM param{}; // NOLINT(bugprone-invalid-enum-default-initialization)
     param.nWidth         = info.nWidth;
     param.nHeight        = info.nHeight;
