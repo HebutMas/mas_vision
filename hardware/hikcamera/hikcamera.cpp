@@ -15,8 +15,7 @@ namespace hardware::hikcamera
 namespace
 {
 // SDK 内部缓存节点数(必须在开始取流前设置)。
-// 配合 LatestImagesOnly 策略:只保留最新一帧即可(与已验证可用的旧驱动一致)。
-constexpr unsigned int NODE_NUM = 1;
+constexpr unsigned int NODE_NUM = 3;
 // 单次取图超时(毫秒)。
 constexpr unsigned int GRAB_TIMEOUT_MS = 200;
 
@@ -239,7 +238,8 @@ void HikCamera::configure()
 
     check(MV_CC_SetImageNodeNum(handle_, NODE_NUM), "set image node num");
     // 只取最新帧。
-    check(MV_CC_SetGrabStrategy(handle_, MV_GrabStrategy_LatestImagesOnly), "set grab strategy");
+    check(MV_CC_SetGrabStrategy(handle_, MV_GrabStrategy_LatestImages), "set grab strategy");
+    //check(MV_CC_SetOutputQueueSize(handle_, 1), "set output queue size");
 }
 
 void HikCamera::close() noexcept
