@@ -97,7 +97,7 @@ struct Detector::Impl
         model = core.compile_model(ppp.build(), config.device, ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY));
     }
 
-    Result detect(const cv::Mat &bgr)
+    Result detect(const cv::Mat &bgr, std::optional<Color> enemy_color)
     {
         Result result;
         if (bgr.empty())
@@ -176,10 +176,11 @@ struct Detector::Impl
             result.armors.push_back(candidates[static_cast<std::size_t>(idx)]);
         }
 
-        // 只保留敌方颜色
-        if (config.enemy_color)
+        // 只保留敌方颜色:优先用调用时传入的覆盖色,否则用配置。
+        const std::optional<Color> filter_color = enemy_color ? enemy_color : config.enemy_color;
+        if (filter_color)
         {
-            filter_by_color(result.armors, *config.enemy_color);
+            filter_by_color(result.armors, *filter_color);
         }
 
         // 绿灯滤除:仅在识别到建筑类(前哨站 / 基地)时触发
@@ -235,6 +236,6 @@ Detector::~Detector()                               = default;
 Detector::Detector(Detector &&) noexcept            = default;
 Detector &Detector::operator=(Detector &&) noexcept = default;
 
-Detector::Result Detector::detect(const cv::Mat &bgr) { return impl_->detect(bgr); }
+Detector::Result Detector::detect(const cv::Mat &bgr, std::optional<Color> enemy_color) { return impl_->detect(bgr, enemy_color); }
 
 } // namespace rm::armor

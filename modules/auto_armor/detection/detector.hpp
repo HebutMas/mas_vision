@@ -50,7 +50,8 @@ class Detector
         std::vector<Lightbar2d> lightbars;
     };
 
-    Result detect(const cv::Mat &bgr);
+    // enemy_color 覆盖配置里的颜色门控;nullopt 表示沿用配置。
+    Result detect(const cv::Mat &bgr, std::optional<Color> enemy_color = std::nullopt);
 
   private:
     struct Impl;

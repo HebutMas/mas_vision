@@ -62,6 +62,50 @@ void draw_detection(cv::Mat &image, const rm::armor::Detector::Result &result)
     }
 }
 
+// 能量机关关键点显示色:top 绿 / left 黄 / R 红 / right 青 / bottom 品红。
+cv::Scalar rune_keypoint_bgr(int index)
+{
+    switch (index)
+    {
+    case rm::buff::KPT_TOP:
+        return {0, 255, 0};
+    case rm::buff::KPT_LEFT:
+        return {0, 255, 255};
+    case rm::buff::KPT_R:
+        return {0, 0, 255};
+    case rm::buff::KPT_RIGHT:
+        return {255, 255, 0};
+    case rm::buff::KPT_BOTTOM:
+        return {255, 0, 255};
+    default:
+        return {255, 255, 255};
+    }
+}
+
+// 把能量机关识别结果(五关键点)画到图上。
+void draw_runes(cv::Mat &image, const rm::buff::Detector::Result &result)
+{
+    if (image.empty())
+    {
+        return;
+    }
+    const double font_scale = image.rows / 720.0;
+    const int    thickness  = 2 + (image.rows / 1080);
+    for (const auto &rune : result.runes)
+    {
+        for (int k = 0; k < rm::buff::KEYPOINT_COUNT; ++k)
+        {
+            const cv::Point point(cvRound(rune.keypoints[k].x), cvRound(rune.keypoints[k].y));
+            const int       radius = (k == rm::buff::KPT_R) ? 6 : 4;
+            cv::circle(image, point, radius, rune_keypoint_bgr(k), cv::FILLED);
+        }
+        const cv::Point   anchor(cvRound(rune.keypoints[rm::buff::KPT_TOP].x), cvRound(rune.keypoints[rm::buff::KPT_TOP].y));
+        const std::string label = "rune" + std::to_string(static_cast<int>(rune.kind)) + " " + cv::format("%.2f", rune.confidence);
+        const cv::Scalar  label_color = (rune.color == rm::buff::Color::red) ? cv::Scalar(0, 0, 255) : cv::Scalar(255, 0, 0);
+        cv::putText(image, label, anchor, cv::FONT_HERSHEY_SIMPLEX, font_scale, label_color, thickness);
+    }
+}
+
 // 左上角显示本次推理耗时(ms)。
 void draw_latency(cv::Mat &image, double latency_ms)
 {
@@ -112,6 +156,7 @@ Debug::Debug(const std::string &application_id) : sink_(application_id)
             sink_.set_time("time", timestamp);
             log_serial(sink_, f.serial);
             draw_detection(f.image, f.detection);
+            draw_runes(f.image, f.rune_detection);
             draw_latency(f.image, f.latency_ms);
             try
             {
@@ -159,7 +204,25 @@ void Debug::push(const cv::Mat &image, std::int64_t frame, tools::time::TimePoin
 #ifdef RM_DEBUG
     if (sink_.active())
     {
-        debug_in_.push(DebugFrame{image, frame, timestamp, serial, std::move(detection), latency_ms});
+        debug_in_.push(DebugFrame{image, frame, timestamp, serial, std::move(detection), latency_ms, {}});
+    }
+#else
+    (void)image;
+    (void)frame;
+    (void)timestamp;
+    (void)serial;
+    (void)detection;
+    (void)latency_ms;
+#endif
+}
+
+void Debug::push(const cv::Mat &image, std::int64_t frame, tools::time::TimePoint timestamp, const hardware::serialport::ReceivePacket &serial,
+                 rm::buff::Detector::Result detection, double latency_ms)
+{
+#ifdef RM_DEBUG
+    if (sink_.active())
+    {
+        debug_in_.push(DebugFrame{image, frame, timestamp, serial, {}, latency_ms, std::move(detection)});
     }
 #else
     (void)image;

@@ -22,7 +22,8 @@ Checks: >
   misc-*,
   -misc-non-private-member-variables-in-classes,
   -misc-include-cleaner,
-  portability-*
+  portability-*,
+  -portability-avoid-pragma-once
 
 CheckOptions:
   - key: readability-identifier-naming.ClassCase

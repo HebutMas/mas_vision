@@ -44,6 +44,14 @@ detector:
     min_circularity: 0.6
     max_aspect_ratio: 1.5
   enemy_color: "" # 颜色判断，空代表都识别
+# 能量机关识别
+buff:
+  model: modules/auto_buff/models/shenzhenbuff-0624.onnx # 相对仓库根目录
+  device: CPU
+  confidence_threshold: 0.8 # 类别置信度阈值
+  keypoint_confidence_threshold: 0.8 # 单关键点置信度阈值
+  nms_distance_threshold: 30.0 # 中心距 NMS 阈值(像素)
+  min_valid_keypoints: 3 # 有效关键点少于此数则丢弃
 track:
   algorithm: null
 shoot:

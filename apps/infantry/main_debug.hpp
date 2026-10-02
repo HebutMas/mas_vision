@@ -2,6 +2,7 @@
 
 #include "hardware/serialport/serialtypes.hpp"
 #include "modules/auto_armor/detection/detector.hpp"
+#include "modules/auto_buff/detection/detector.hpp"
 #include "tools/debug/debug.hpp"
 #include "tools/time/time.hpp"
 
@@ -36,6 +37,8 @@ class Debug
     // 推入一帧识别结果(含当前云台串口数据与本次推理耗时 ms)。
     void push(const cv::Mat &image, std::int64_t frame, tools::time::TimePoint timestamp, const hardware::serialport::ReceivePacket &serial,
               rm::armor::Detector::Result detection, double latency_ms);
+    void push(const cv::Mat &image, std::int64_t frame, tools::time::TimePoint timestamp, const hardware::serialport::ReceivePacket &serial,
+              rm::buff::Detector::Result detection, double latency_ms);
 
   private:
     tools::debug::Sink sink_;
@@ -50,6 +53,7 @@ class Debug
         hardware::serialport::ReceivePacket serial;
         rm::armor::Detector::Result         detection;
         double                              latency_ms{};
+        rm::buff::Detector::Result          rune_detection;
     };
 
     tools::LatestFrame<DebugFrame> debug_in_;

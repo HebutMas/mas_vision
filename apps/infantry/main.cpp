@@ -2,15 +2,19 @@
 #include "hardware/hikcamera/hikcamera.hpp"
 #include "hardware/serialport/serialport.hpp"
 #include "modules/auto_armor/detection/detector.hpp"
+#include "modules/auto_buff/detection/detector.hpp"
 #include "tools/config/config.hpp"
 #include "tools/exiter/exiter.hpp"
 
 #include <chrono>
 #include <cstdint>
 #include <exception>
+#include <optional>
 #include <string>
 #include <thread>
+#include <utility>
 
+// NOLINTNEXTLINE(bugprone-exception-escape): catch 内日志可能抛异常,进程直接退出即可。
 int main(int argc, char **argv)
 try
 {
@@ -32,7 +36,9 @@ try
     hardware::hikcamera::HikCamera hikcamera(hardware::hikcamera::load_hikcamera_config(config));
 
     // 装甲板检测
-    rm::armor::Detector detector(rm::armor::load_detector_config(config));
+    rm::armor::Detector armor_detector(rm::armor::load_detector_config(config));
+    // 能量机关检测
+    rm::buff::Detector buff_detector(rm::buff::load_detector_config(config));
 
     while (!tools::should_exit())
     {
@@ -52,14 +58,26 @@ try
             continue;
         }
 
-        // 识别
-        const auto                        detect_begin = std::chrono::steady_clock::now();
-        const rm::armor::Detector::Result detection    = detector.detect(hik_frame.image);
-        const double detect_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - detect_begin).count();
-
-        // TODO(track) TODO(fire)
-
-        debug.push(hik_frame.image, frame++, hik_frame.timestamp, state, detection,detect_ms);
+        // 识别:按串口下发的 mode 在自瞄/能量机关之间切换
+        const bool rune_mode    = hardware::serialport::is_rune_mode(state.mode);
+        const bool red_mode     = hardware::serialport::is_red_mode(state.mode);
+        const auto detect_begin = std::chrono::steady_clock::now();
+        if (rune_mode)
+        {
+            const rm::buff::Color color     = red_mode ? rm::buff::Color::red : rm::buff::Color::blue;
+            auto                  detection = buff_detector.detect(hik_frame.image, color);
+            const double detect_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - detect_begin).count();
+            // TODO(track) TODO(fire)
+            debug.push(hik_frame.image, frame++, hik_frame.timestamp, state, std::move(detection), detect_ms);
+        }
+        else
+        {
+            const std::optional<rm::armor::Color> enemy_color = red_mode ? rm::armor::Color::red : rm::armor::Color::blue;
+            auto                                  detection   = armor_detector.detect(hik_frame.image, enemy_color);
+            const double detect_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - detect_begin).count();
+            // TODO(track) TODO(fire)
+            debug.push(hik_frame.image, frame++, hik_frame.timestamp, state, std::move(detection), detect_ms);
+        }
     }
 
     return 0;
