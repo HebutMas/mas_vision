@@ -35,14 +35,14 @@ try
                "  height: 480\n"
                "  fps: 60\n"
                "  fourcc: YUYV\n"
-               "  auto_exposure: 0\n"
+               "  auto_exposure_enable: 0\n"
                "  exposure: 100\n"
                "  gain: 5\n"
                "  auto_wb: 1\n";
         out.close();
         const auto cfg = hardware::usbcamera::load_usbcamera_config(tools::config::Config(path.string()));
         if (cfg.device_path != "/dev/video2" || cfg.width != 640 || cfg.height != 480 || cfg.fps != 60 || cfg.fourcc != "YUYV" ||
-            cfg.auto_exposure != 0 || cfg.exposure != 100.0 || cfg.gain != 5.0 || cfg.auto_wb != 1)
+            cfg.auto_exposure_enable != 0 || cfg.exposure != 100.0 || cfg.gain != 5.0 || cfg.auto_wb != 1)
         {
             std::cerr << "FAIL: usbcamera config load\n";
             return 1;

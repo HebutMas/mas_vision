@@ -24,8 +24,8 @@ struct UsbCameraConfig
     int         width{1280};                // 图像宽度。
     int         height{720};                // 图像高度。
     int         fps{30};                    // 帧率。
-    std::string fourcc{"MJPG"};             // 像素格式,如 MJPG / YUYV。
-    int         auto_exposure{1};           // 曝光模式:0=自动,1=手动。
+    std::string fourcc{"MJPG"};           // 像素格式,如 MJPG / YUYV。
+    int         auto_exposure_enable{1};    // 自动曝光:1=启用(自动),0=关闭
     double      exposure{50.0};             // 曝光值(仅手动模式)。
     double      gain{20.0};                 // 增益(仅手动模式)。
     int         auto_wb{0};                 // 自动白平衡:0=禁用,1=启用。
@@ -35,15 +35,15 @@ struct UsbCameraConfig
 [[nodiscard]] inline UsbCameraConfig load_usbcamera_config(const tools::config::Config &config)
 {
     UsbCameraConfig cfg;
-    cfg.device_path   = config.require<std::string>("usbcamera.device_path");
-    cfg.width         = config.require<int>("usbcamera.width");
-    cfg.height        = config.require<int>("usbcamera.height");
-    cfg.fps           = config.require<int>("usbcamera.fps");
-    cfg.fourcc        = config.require<std::string>("usbcamera.fourcc");
-    cfg.auto_exposure = config.require<int>("usbcamera.auto_exposure");
-    cfg.exposure      = config.require<double>("usbcamera.exposure");
-    cfg.gain          = config.require<double>("usbcamera.gain");
-    cfg.auto_wb       = config.require<int>("usbcamera.auto_wb");
+    cfg.device_path          = config.require<std::string>("usbcamera.device_path");
+    cfg.width                = config.require<int>("usbcamera.width");
+    cfg.height               = config.require<int>("usbcamera.height");
+    cfg.fps                  = config.require<int>("usbcamera.fps");
+    cfg.fourcc               = config.require<std::string>("usbcamera.fourcc");
+    cfg.auto_exposure_enable = config.require<int>("usbcamera.auto_exposure_enable");
+    cfg.exposure             = config.require<double>("usbcamera.exposure");
+    cfg.gain                 = config.require<double>("usbcamera.gain");
+    cfg.auto_wb              = config.require<int>("usbcamera.auto_wb");
     return cfg;
 }
 

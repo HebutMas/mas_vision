@@ -18,7 +18,7 @@ usbcamera:
   height: 720
   fps: 30
   fourcc: MJPG
-  auto_exposure: 1
+  auto_exposure_enable: 1 # 1=自动,0=手动(此时 exposure/gain 生效)
   exposure: 50
   gain: 20
   auto_wb: 0
