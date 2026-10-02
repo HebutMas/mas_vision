@@ -123,3 +123,7 @@ shoot:
 - [`sp_vision_25`](https://github.com/TongjiSuperPower/sp_vision_25)
 - [`julyfun/rm.cv.fans`](https://github.com/julyfun/rm.cv.fans)
 - [`chenjunnn/rm_vision`](https://github.com/chenjunnn/rm_vision)
+- [`Alliance-Algorithm/rmcs_auto_aim_v2`](https://github.com/Alliance-Algorithm/rmcs_auto_aim_v2)
+- [`SZURPVision/RP-26Rune`](https://github.com/SZURPVision/RP-26Rune)
+- [`SZURPVision/RuneDetectionModel`](https://github.com/SZURPVision/RuneDetectionModel)
+- [`SZURPVision/26_NNDeployment_Lib_and_Detection_Models`](https://github.com/SZURPVision/26_NNDeployment_Lib_and_Detection_Models)
