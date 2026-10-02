@@ -296,23 +296,19 @@ class Sink
 #endif
     }
 
-    // 发送一张 BGR 图像,Viewer 里显示为静态图片
-    // 数据按 width*height*3 的 BGR 排列;空数据或未启用时静默跳过。
-    void image(const std::string &path, std::vector<std::uint8_t> bgr, int width, int height)
+    // 发送一张图片（jpeg格式）
+    void image(const std::string &path, std::vector<std::uint8_t> jpeg)
     {
 #if defined(RM_DEBUG)
-        if (!active_ || bgr.empty())
+        if (!active_ || jpeg.empty())
         {
             return;
         }
-        stream_->log(path, rerun::archetypes::Image(rerun::Collection<std::uint8_t>::take_ownership(std::move(bgr)),
-                                                    rerun::WidthHeight(static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)),
-                                                    rerun::encodings::ColorModel::BGR));
+        stream_->log(path, rerun::archetypes::EncodedImage::from_bytes(rerun::Collection<std::uint8_t>::take_ownership(std::move(jpeg)),
+                                                                       rerun::components::MediaType::jpeg()));
 #else
         (void)path;
-        (void)bgr;
-        (void)width;
-        (void)height;
+        (void)jpeg;
 #endif
     }
 
