@@ -31,6 +31,7 @@ RoboMaster 自瞄视觉框架。纯 C++17,无 ROS 依赖,面向无头 Linux 部�
 │   ├── time/                    # time,统一时间基准
 │   ├── latest_frame/            # latest_frame
 │   ├── exiter/                  # exiter,SIGINT/SIGTERM 退出标志
+│   ├── calibration/             # calibration,相机标定
 │   └── debug/                   # debug,远程调试(日志 Sink / 视频编码 / record 录像)
 ├── hardware/                    # 硬件层
 │   ├── hikcamera/               # hikcamera,海康 USB3.0 相机驱动
@@ -40,6 +41,7 @@ RoboMaster 自瞄视觉框架。纯 C++17,无 ROS 依赖,面向无头 Linux 部�
 │   ├── auto_armor/              # 装甲板识别
 │   └── auto_buff/               # 能量机关识别
 └── apps/                        # 应用层
+    ├── calibration/             # 相机标定工具
     └── templates/               # 新兵种示例
 ```
 
@@ -50,8 +52,8 @@ RoboMaster 自瞄视觉框架。纯 C++17,无 ROS 依赖,面向无头 Linux 部�
 编译哪些兵种由根 `CMakeLists.txt` 中的 `set(APPS ...)` 决定,改哪个编哪个:
 
 ```cmake
-# Options: infantry hero sentry dart
-set(APPS infantry)
+# Options: infantry hero sentry dart calibration
+set(APPS infantry calibration)
 ```
 
 ```bash
@@ -100,7 +102,7 @@ usbcamera:
   height: 720
   fps: 30
   fourcc: MJPG      # MJPG/YUYV
-  auto_exposure: 1  # 0=自动,1=手动
+  auto_exposure_enable: 1  # 1=自动,0=手动(此时 exposure/gain 生效)
   exposure: 50
   gain: 20
   auto_wb: 0        # 0=禁用,1=启用

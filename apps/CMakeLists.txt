@@ -1,4 +1,4 @@
-set(KNOWN_APPS infantry hero sentry dart)
+set(KNOWN_APPS infantry hero sentry dart calibration)
 
 foreach(app ${APPS})
   if(NOT app IN_LIST KNOWN_APPS)
@@ -12,6 +12,8 @@ foreach(app ${APPS})
   target_link_libraries(${app} PRIVATE tools hardware auto_armor_detection ${OpenCV_LIBS})
   # 配置默认走绝对路径,这样从任意目录运行都能找到 apps/<app>/config.yaml。
   target_compile_definitions(${app} PRIVATE RM_CONFIG_PATH="${CMAKE_SOURCE_DIR}/apps/${app}/config.yaml")
+  # 配置里的相对路径(如标定输出)按仓库根解析,不依赖启动时的工作目录。
+  target_compile_definitions(${app} PRIVATE RM_PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
 endforeach()
 
 message(STATUS "Building apps: ${APPS}")

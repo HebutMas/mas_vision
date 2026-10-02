@@ -37,6 +37,12 @@ target_link_libraries(exiter_test PRIVATE tools)
 
 add_test(NAME exiter COMMAND exiter_test)
 
+# 相机标定:棋盘格内参(不依赖 Rerun,始终构建)。
+add_library(rm_calibration STATIC calibration/calibration.cpp)
+target_include_directories(rm_calibration PUBLIC ${PROJECT_SOURCE_DIR})
+target_link_libraries(rm_calibration PUBLIC ${OpenCV_LIBS})
+target_link_libraries(tools INTERFACE rm_calibration)
+
 if(RM_DEBUG)
   target_compile_definitions(tools INTERFACE RM_DEBUG)
   target_link_libraries(tools INTERFACE rerun_sdk)

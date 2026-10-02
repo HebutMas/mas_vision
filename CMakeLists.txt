@@ -14,8 +14,8 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# Which apps to build; edit this list. Options: infantry hero sentry dart
-set(APPS infantry)
+# Which apps to build; edit this list. Options: infantry hero sentry dart calibration
+set(APPS infantry calibration)
 
 # 远程调试(Rerun):默认开启。可在配置时用 -DRM_DEBUG=OFF 关闭,跳过 Rerun/Arrow 编译。
 option(RM_DEBUG "Enable Rerun remote-debugging (builds Arrow, slow)" ON)
