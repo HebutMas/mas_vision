@@ -57,10 +57,10 @@ set(APPS infantry calibration)
 ```
 
 ```bash
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DOpenVINO_DIR=/opt/openvino/runtime/cmake
 cmake --build build -j4
 ctest --test-dir build --output-on-failure   # ctest 测试
-./build/apps/infantry
+./build/apps/infantry # 这里app设定的那个就运行那个
 ```
 
 ## 扩展指南

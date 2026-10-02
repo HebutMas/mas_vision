@@ -32,20 +32,14 @@ target_link_libraries(hardware INTERFACE hikcamera)
 # SDK 动态库不在系统默认搜索路径时,给可执行文件写死 rpath 保证运行时找到。
 target_link_options(hikcamera PUBLIC "-Wl,-rpath,${MVS_LIBRARY_DIRS}")
 
-# 测试:无相机时失败,有相机时抓一帧;RM_DEBUG 下顺带把画面送 Rerun。
+# 测试 + 基准自检:无相机时失败,有相机时抓一帧;RM_DEBUG 下顺带把画面送 Rerun;
+# 最后测 Bayer->BGR 转换耗时与实机采集帧率(无相机时跳过采集部分)。
 add_executable(hikcamera_test hikcamera/test.cpp)
 target_link_libraries(hikcamera_test PRIVATE hardware tools)
 
 add_test(NAME hikcamera COMMAND hikcamera_test)
 # 无相机 / 无 Viewer 时测试直接结束;RM_DEBUG 且 Viewer 在线时会连续发送 5s
 set_tests_properties(hikcamera PROPERTIES TIMEOUT 60)
-
-# 基准自检:Bayer->BGR 转换耗时对比 + 实机采集帧率(无相机时跳过采集部分)。
-add_executable(hikcamera_bench hikcamera/bench.cpp)
-target_link_libraries(hikcamera_bench PRIVATE hardware tools)
-
-add_test(NAME hikcamera_bench COMMAND hikcamera_bench)
-set_tests_properties(hikcamera_bench PROPERTIES TIMEOUT 60)
 
 # USB(UVC)相机驱动:走 OpenCV 的 V4L2 后端
 add_library(usbcamera STATIC usbcamera/usbcamera.cpp)

@@ -154,8 +154,7 @@ sudo dnf install -y ffmpeg-devel libva-devel ffmpeg
 ## 配置与构建
 
 ```bash
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-  -DOpenVINO_DIR=/opt/openvino/runtime/cmake
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DOpenVINO_DIR=/opt/openvino/runtime/cmake
 cmake --build build -j4
 ```
 

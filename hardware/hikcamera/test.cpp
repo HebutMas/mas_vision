@@ -5,6 +5,8 @@
 #include "tools/time/time.hpp"
 #endif
 
+#include <opencv2/imgproc.hpp>
+
 #include <chrono>
 #include <exception>
 #include <filesystem>
@@ -13,15 +15,47 @@
 #include <string>
 #include <utility>
 
-#ifdef RM_DEBUG
 namespace
 {
+#ifdef RM_DEBUG
 constexpr int SEND_SECONDS = 5;
-} // namespace
 #endif
 
-// 测试:没有相机时应当抛异常并返回 0;接了相机则抓一帧验证输出格式。
-// 调试构建下若相机出图,再把画面硬编成 H.264 送到 Rerun Viewer 方便肉眼确认。
+// Bayer8 -> BGR 转换耗时基准。
+constexpr int    BENCH_WIDTH  = 1440;
+constexpr int    BENCH_HEIGHT = 1080;
+constexpr int    BENCH_ITERS  = 200;
+constexpr int    BENCH_FRAMES = 400;
+constexpr double TARGET_FPS   = 200.0;
+
+// 重复 BENCH_ITERS 次转换,返回平均单帧耗时(ms)。输出 Mat 复用,测试开销。
+double bench_convert(const cv::Mat &bayer, int code)
+{
+    cv::Mat    dst;
+    const auto start = std::chrono::steady_clock::now();
+    for (int i = 0; i < BENCH_ITERS; ++i)
+    {
+        cv::cvtColor(bayer, dst, code);
+    }
+    const auto end = std::chrono::steady_clock::now();
+    return std::chrono::duration<double, std::milli>(end - start).count() / BENCH_ITERS;
+}
+
+void report_bench(const char *name, double ms)
+{
+    std::cout << name << ": " << ms << " ms/frame, " << (1000.0 / ms) << " fps max, " << (ms * TARGET_FPS / 1000.0) << " core @ " << TARGET_FPS
+              << "fps\n";
+}
+
+void bench_demosaic()
+{
+    std::cout << "\n=== Bayer8 -> BGR convert (" << BENCH_WIDTH << "x" << BENCH_HEIGHT << ", " << BENCH_ITERS << " iters) ===\n";
+    const cv::Mat bayer(BENCH_HEIGHT, BENCH_WIDTH, CV_8UC1, cv::Scalar(128));
+    report_bench("bilinear  ", bench_convert(bayer, cv::COLOR_BayerRG2BGR));
+    report_bench("edge_aware", bench_convert(bayer, cv::COLOR_BayerRG2BGR_EA));
+}
+} // namespace
+
 int main()
 try
 {
@@ -46,7 +80,7 @@ try
             return 1;
         }
 
-        // 缺键:require 抛错。
+        // 缺键报错
         std::ofstream partial(path);
         partial << "hikcamera:\n  serial: ABC123\n";
         partial.close();
@@ -124,6 +158,32 @@ try
                 std::cout << "Rerun Viewer is not available, skipping video output\n";
             }
 #endif
+
+            // 采集帧率:连续取 N 帧,计算实际采集帧率
+            const int  bench_frames = BENCH_FRAMES;
+            int        count        = 0;
+            auto       first        = frame.timestamp;
+            auto       last         = frame.timestamp;
+            const auto begin        = std::chrono::steady_clock::now();
+            while (count < bench_frames && frames.wait_for(frame, std::chrono::milliseconds(500)))
+            {
+                if (count == 0)
+                {
+                    first = frame.timestamp;
+                }
+                last = frame.timestamp;
+                ++count;
+            }
+            const auto   end  = std::chrono::steady_clock::now();
+            const double wall = std::chrono::duration<double>(end - begin).count();
+            const double span = std::chrono::duration<double>(last - first).count();
+
+            std::cout << "capture   : " << frame.image.cols << "x" << frame.image.rows << " ch=" << frame.image.channels() << "\n";
+            std::cout << "wall fps  : " << (count / wall) << " (" << count << " frames / " << wall << " s)\n";
+            if (count > 1 && span > 0.0)
+            {
+                std::cout << "stream fps: " << ((count - 1) / span) << " (by frame timestamps)\n";
+            }
         }
         else
         {
@@ -135,6 +195,8 @@ try
         // 找不到相机属于正常情况:驱动会抛异常,这里视为通过。
         std::cout << "hikcamera test error: " << error.what() << "\n";
     }
+
+    bench_demosaic();
 
     std::cout << "hikcamera test passed\n";
     return 0;
