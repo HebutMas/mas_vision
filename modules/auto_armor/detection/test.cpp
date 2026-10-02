@@ -231,8 +231,9 @@ void report_debug(const cv::Mat &image, const rm::armor::Detector::Result &resul
             cv::putText(vis, label, polygon.front(), cv::FONT_HERSHEY_SIMPLEX, 0.5, color, 1);
         }
 
-        std::vector<std::uint8_t> bgr(vis.data, vis.data + (vis.total() * vis.elemSize()));
-        sink.image("detection/image", std::move(bgr), vis.cols, vis.rows);
+        std::vector<std::uint8_t> jpeg;
+        cv::imencode(".jpg", vis, jpeg, {cv::IMWRITE_JPEG_QUALITY, 80});
+        sink.image("detection/image", std::move(jpeg));
         sink.data("detection/latency_ms", latency_ms);
         std::cout << "[rerun] pushed detection image + latency (" << latency_ms << " ms)\n";
     }
