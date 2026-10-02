@@ -62,6 +62,25 @@ void draw_detection(cv::Mat &image, const rm::armor::Detector::Result &result)
     }
 }
 
+// 左上角显示本次推理耗时(ms)。
+void draw_latency(cv::Mat &image, double latency_ms)
+{
+    if (image.empty())
+    {
+        return;
+    }
+    const std::string label      = cv::format("detect %.2f ms", latency_ms);
+    const double      font_scale = image.rows / 720.0;
+    const int         thickness  = 2 + (image.rows / 1080);
+    int               baseline   = 0;
+    const cv::Size    text_size  = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, font_scale, thickness, &baseline);
+    const cv::Point   origin(12, 12 + text_size.height);
+    // 先铺一块黑底
+    cv::rectangle(image, cv::Rect(origin.x - 6, origin.y - text_size.height - 6, text_size.width + 12, text_size.height + baseline + 12), {0, 0, 0},
+                  cv::FILLED);
+    cv::putText(image, label, origin, cv::FONT_HERSHEY_SIMPLEX, font_scale, {0, 255, 255}, thickness);
+}
+
 // 把云台串口数据(模式 + 四元数 + 欧拉角)一并记录到 Rerun。
 void log_serial(tools::debug::Sink &sink, const hardware::serialport::ReceivePacket &packet)
 {
@@ -93,6 +112,7 @@ Debug::Debug(const std::string &application_id) : sink_(application_id)
             sink_.set_time("time", timestamp);
             log_serial(sink_, f.serial);
             draw_detection(f.image, f.detection);
+            draw_latency(f.image, f.latency_ms);
             try
             {
                 if (!encoder)
@@ -134,12 +154,12 @@ Debug::~Debug()
 bool Debug::active() const { return sink_.active(); }
 
 void Debug::push(const cv::Mat &image, std::int64_t frame, tools::time::TimePoint timestamp, const hardware::serialport::ReceivePacket &serial,
-                 rm::armor::Detector::Result detection)
+                 rm::armor::Detector::Result detection, double latency_ms)
 {
 #ifdef RM_DEBUG
     if (sink_.active())
     {
-        debug_in_.push(DebugFrame{image, frame, timestamp, serial, std::move(detection)});
+        debug_in_.push(DebugFrame{image, frame, timestamp, serial, std::move(detection), latency_ms});
     }
 #else
     (void)image;
@@ -147,6 +167,7 @@ void Debug::push(const cv::Mat &image, std::int64_t frame, tools::time::TimePoin
     (void)timestamp;
     (void)serial;
     (void)detection;
+    (void)latency_ms;
 #endif
 }
 

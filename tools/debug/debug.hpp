@@ -9,10 +9,13 @@
 #include <utility>
 #include <vector>
 
+#include "tools/time/time.hpp"
+
 #if defined(RM_DEBUG)
 // 仅调试构建才引入 Rerun SDK 与网络探测所需的系统头文件。
 #include <rerun.hpp>
 
+#include <atomic>
 #include <cerrno>
 #include <fcntl.h>
 #include <netdb.h>
@@ -185,6 +188,8 @@ class Sink
     // address 留空则用 DEFAULT_ADDRESS。
     Sink(const std::string &application_id, const std::string &address = DEFAULT_ADDRESS)
     {
+        // 统一时间基点:必须在任何硬件打时间戳之前,否则首帧时间戳会早于基点,推给 Rerun 的 time 轴就是负值。
+        static_cast<void>(tools::time::base());
 #if defined(RM_DEBUG)
         if (detail::viewer_online(address))
         {
@@ -223,6 +228,7 @@ class Sink
         {
             return;
         }
+        frame_.store(frame, std::memory_order_relaxed);
         stream_->set_time_sequence("frame", frame);
 #else
         (void)frame;
@@ -321,6 +327,8 @@ class Sink
         {
             return;
         }
+        // 这里在写日志前统一补上当前帧/时间。
+        apply_time();
         stream_->log(path, rerun::TextLog(message).with_level(detail::to_rerun_level(level)));
 #else
         (void)path;
@@ -332,6 +340,15 @@ class Sink
     bool active_ = false;
 
 #if defined(RM_DEBUG)
+    // 最近一次 set_frame 的帧号
+    std::atomic<std::int64_t> frame_{0};
+
+    void apply_time()
+    {
+        stream_->set_time_sequence("frame", frame_.load(std::memory_order_relaxed));
+        stream_->set_time_duration("time", tools::time::since_base(tools::time::now()));
+    }
+
     std::unique_ptr<rerun::RecordingStream> stream_;
     std::set<std::string>                   video_codec_paths_;
 #endif

@@ -33,9 +33,9 @@ class Debug
     // Viewer 是否处于活动状态。
     [[nodiscard]] bool active() const;
 
-    // 推入一帧识别结果(含当前云台串口数据)。
+    // 推入一帧识别结果(含当前云台串口数据与本次推理耗时 ms)。
     void push(const cv::Mat &image, std::int64_t frame, tools::time::TimePoint timestamp, const hardware::serialport::ReceivePacket &serial,
-              rm::armor::Detector::Result detection);
+              rm::armor::Detector::Result detection, double latency_ms);
 
   private:
     tools::debug::Sink sink_;
@@ -49,6 +49,7 @@ class Debug
         tools::time::TimePoint              timestamp;
         hardware::serialport::ReceivePacket serial;
         rm::armor::Detector::Result         detection;
+        double                              latency_ms{};
     };
 
     tools::LatestFrame<DebugFrame> debug_in_;

@@ -53,11 +53,13 @@ try
         }
 
         // 识别
-        const rm::armor::Detector::Result detection = detector.detect(hik_frame.image);
+        const auto                        detect_begin = std::chrono::steady_clock::now();
+        const rm::armor::Detector::Result detection    = detector.detect(hik_frame.image);
+        const double detect_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - detect_begin).count();
 
         // TODO(track) TODO(fire)
 
-        debug.push(hik_frame.image, frame++, hik_frame.timestamp, state, detection);
+        debug.push(hik_frame.image, frame++, hik_frame.timestamp, state, detection,detect_ms);
     }
 
     return 0;
