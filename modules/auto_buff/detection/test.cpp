@@ -1,4 +1,5 @@
 #include "modules/auto_buff/detection/detector.hpp"
+#include "modules/auto_buff/detection/refiner.hpp"
 #include "tools/config/config.hpp"
 #include "tools/debug/debug.hpp"
 
@@ -40,20 +41,6 @@ rm::buff::DetectorConfig make_config()
     return config;
 }
 
-const char *kind_name(rm::buff::Kind kind)
-{
-    switch (kind)
-    {
-    case rm::buff::Kind::inactive:
-        return "inactive";
-    case rm::buff::Kind::small_activated:
-        return "small_activated";
-    case rm::buff::Kind::big_activated:
-        return "big_activated";
-    }
-    return "unknown";
-}
-
 // 关键点固定配色,索引 2(R 标)用红色以便区分。
 cv::Scalar keypoint_color(int index)
 {
@@ -75,9 +62,22 @@ cv::Mat annotate(const cv::Mat &image, const rm::buff::Detector::Result &result,
         for (int k = 0; k < rm::buff::KEYPOINT_COUNT; ++k)
         {
             const cv::Point point(cvRound(rune.keypoints[static_cast<std::size_t>(k)].x), cvRound(rune.keypoints[static_cast<std::size_t>(k)].y));
-            cv::circle(vis, point, (k == rm::buff::KPT_R) ? 5 : 3, keypoint_color(k), cv::FILLED);
+            cv::circle(vis, point, (k == rm::buff::kpt_r) ? 5 : 3, keypoint_color(k), cv::FILLED);
         }
-        const cv::Point   anchor(cvRound(rune.keypoints[rm::buff::KPT_TOP].x), cvRound(rune.keypoints[rm::buff::KPT_TOP].y) - 8);
+        // 精修轮廓:装甲板(绿)/灯臂(青)/中心 R(黄)。
+        if (!rune.refinement.armor_module.empty())
+        {
+            cv::polylines(vis, rune.refinement.armor_module, true, cv::Scalar(0, 255, 0), 2);
+        }
+        if (!rune.refinement.light_arm.empty())
+        {
+            cv::polylines(vis, rune.refinement.light_arm, true, cv::Scalar(255, 255, 0), 2);
+        }
+        if (!rune.refinement.center_r.empty())
+        {
+            cv::polylines(vis, rune.refinement.center_r, true, cv::Scalar(0, 255, 255), 2);
+        }
+        const cv::Point   anchor(cvRound(rune.keypoints[rm::buff::kpt_top].x), cvRound(rune.keypoints[rm::buff::kpt_top].y) - 8);
         const std::string label = std::string(kind_name(rune.kind)) + " " + cv::format("%.2f", rune.confidence);
         cv::putText(vis, label, anchor, cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0), 2);
     }
@@ -288,13 +288,14 @@ void test_config()
     const std::string yaml_path = (std::filesystem::temp_directory_path() / "rm_auto_buff_config_test.yaml").string();
     {
         std::ofstream out(yaml_path);
-        out << "buff:\n  model: modules/auto_buff/models/shenzhenbuff-0624.onnx\n";
+        out << "buff:\n  model: modules/auto_buff/models/shenzhenbuff-0624.onnx\n  refine:\n    border_margin: 3.5\n";
     }
 
     const tools::config::Config    config(yaml_path);
     const rm::buff::DetectorConfig detector = rm::buff::load_detector_config(config);
     check(std::filesystem::path(detector.model).is_absolute(), "relative model path resolves to absolute");
     check(std::filesystem::exists(detector.model), "resolved model path exists: " + detector.model);
+    check(detector.refiner.border_margin > 3.0, "buff.refine parsed");
 }
 
 // 合成图跑通「加载模型 -> 预处理 -> 推理 -> 后处理」全链路,并验证空图安全。
@@ -312,6 +313,32 @@ void test_model_smoke()
     {
         check(false, std::string("smoke threw: ") + error.what());
     }
+}
+
+// 合成红方符叶:中心大圆=装甲板,左侧长条=未激活灯臂,最左小圆=中心 R,
+// 验证三类轮廓能被区分且描述符判定为可用。
+void test_refiner()
+{
+    cv::Mat image(640, 640, CV_8UC3, cv::Scalar(0, 0, 0));
+    cv::circle(image, {320, 320}, 120, cv::Scalar(0, 0, 255), cv::FILLED);
+    cv::rectangle(image, {110, 310}, {190, 330}, cv::Scalar(0, 0, 255), cv::FILLED);
+    cv::circle(image, {80, 320}, 12, cv::Scalar(0, 0, 255), cv::FILLED);
+
+    rm::buff::Rune2d rune;
+    rune.kind                            = rm::buff::Kind::inactive;
+    rune.color                           = rm::buff::Color::red;
+    rune.keypoints[rm::buff::kpt_top]    = {320.0F, 200.0F};
+    rune.keypoints[rm::buff::kpt_left]   = {200.0F, 320.0F};
+    rune.keypoints[rm::buff::kpt_r]      = {80.0F, 320.0F};
+    rune.keypoints[rm::buff::kpt_right]  = {440.0F, 320.0F};
+    rune.keypoints[rm::buff::kpt_bottom] = {320.0F, 440.0F};
+
+    rm::buff::RefinerConfig             config;
+    config.roi_margin_ratio             = 0.6;
+    const rm::buff::RuneRefinement      result = rm::buff::refine(image, rune, config);
+    check(result.is_armor_module_usable, "refiner: armor module usable");
+    check(result.is_light_arm_usable, "refiner: light arm usable");
+    check(result.is_center_r_usable, "refiner: center R usable");
 }
 
 } // namespace
@@ -335,6 +362,7 @@ int main(int argc, char **argv)
 
     test_config();
     test_model_smoke();
+    test_refiner();
 
     if (!self_test)
     {

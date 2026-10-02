@@ -1,6 +1,8 @@
 #include "apps/infantry/main_debug.hpp"
 
 #ifdef RM_DEBUG
+#include "modules/auto_armor/debug/visualize.hpp"
+#include "modules/auto_buff/debug/visualize.hpp"
 #include "tools/debug/video/video_encoder.hpp"
 
 #include <opencv2/imgproc.hpp>
@@ -19,93 +21,6 @@ namespace infantry
 namespace
 {
 #ifdef RM_DEBUG
-// 识别颜色 -> BGR 显示色(红/蓝/灰/紫)。
-cv::Scalar armor_color_bgr(rm::armor::Color color)
-{
-    switch (color)
-    {
-    case rm::armor::Color::red:
-        return {0, 0, 255};
-    case rm::armor::Color::blue:
-        return {255, 0, 0};
-    case rm::armor::Color::gray:
-        return {128, 128, 128};
-    case rm::armor::Color::purple:
-        return {255, 0, 255};
-    }
-    return {255, 255, 255};
-}
-
-// 把识别结果画到图上
-void draw_detection(cv::Mat &image, const rm::armor::Detector::Result &result)
-{
-    if (image.empty())
-    {
-        return;
-    }
-    for (const auto &armor : result.armors)
-    {
-        std::vector<cv::Point> polygon;
-        polygon.reserve(armor.corners.size());
-        for (const auto &corner : armor.corners)
-        {
-            polygon.emplace_back(cvRound(corner.x), cvRound(corner.y));
-        }
-        const cv::Scalar color = armor_color_bgr(armor.color);
-        cv::polylines(image, polygon, true, color, 2);
-        const std::string label = "k" + std::to_string(static_cast<int>(armor.kind)) + " c" + std::to_string(static_cast<int>(armor.color)) + " " +
-                                  cv::format("%.2f", armor.confidence);
-        // 字体随分辨率放大:720p→1.0/2px,1080p→1.5/3px;原来 0.5/1px 编码后发糊。
-        const double font_scale = image.rows / 720.0;
-        const int    thickness  = 2 + (image.rows / 1080);
-        cv::putText(image, label, polygon.front(), cv::FONT_HERSHEY_SIMPLEX, font_scale, color, thickness);
-    }
-}
-
-// 能量机关关键点显示色:top 绿 / left 黄 / R 红 / right 青 / bottom 品红。
-cv::Scalar rune_keypoint_bgr(int index)
-{
-    switch (index)
-    {
-    case rm::buff::KPT_TOP:
-        return {0, 255, 0};
-    case rm::buff::KPT_LEFT:
-        return {0, 255, 255};
-    case rm::buff::KPT_R:
-        return {0, 0, 255};
-    case rm::buff::KPT_RIGHT:
-        return {255, 255, 0};
-    case rm::buff::KPT_BOTTOM:
-        return {255, 0, 255};
-    default:
-        return {255, 255, 255};
-    }
-}
-
-// 把能量机关识别结果(五关键点)画到图上。
-void draw_runes(cv::Mat &image, const rm::buff::Detector::Result &result)
-{
-    if (image.empty())
-    {
-        return;
-    }
-    const double font_scale = image.rows / 720.0;
-    const int    thickness  = 2 + (image.rows / 1080);
-    for (const auto &rune : result.runes)
-    {
-        for (int k = 0; k < rm::buff::KEYPOINT_COUNT; ++k)
-        {
-            const cv::Point point(cvRound(rune.keypoints[k].x), cvRound(rune.keypoints[k].y));
-            const int       radius = (k == rm::buff::KPT_R) ? 6 : 4;
-            cv::circle(image, point, radius, rune_keypoint_bgr(k), cv::FILLED);
-        }
-        const cv::Point   anchor(cvRound(rune.keypoints[rm::buff::KPT_TOP].x), cvRound(rune.keypoints[rm::buff::KPT_TOP].y));
-        const std::string label = "rune" + std::to_string(static_cast<int>(rune.kind)) + " " + cv::format("%.2f", rune.confidence);
-        const cv::Scalar  label_color = (rune.color == rm::buff::Color::red) ? cv::Scalar(0, 0, 255) : cv::Scalar(255, 0, 0);
-        cv::putText(image, label, anchor, cv::FONT_HERSHEY_SIMPLEX, font_scale, label_color, thickness);
-    }
-}
-
 // 左上角显示本次推理耗时(ms)。
 void draw_latency(cv::Mat &image, double latency_ms)
 {
@@ -155,8 +70,8 @@ Debug::Debug(const std::string &application_id) : sink_(application_id)
             sink_.set_frame(f.frame);
             sink_.set_time("time", timestamp);
             log_serial(sink_, f.serial);
-            draw_detection(f.image, f.detection);
-            draw_runes(f.image, f.rune_detection);
+            rm::armor::draw(f.image, f.detection);
+            rm::buff::draw(f.image, f.rune_detection);
             draw_latency(f.image, f.latency_ms);
             try
             {

@@ -7,7 +7,9 @@ endif()
 add_library(auto_buff_detection STATIC
   detection/detector.cpp
   models/model.cpp
-  models/shenzhenbuff.cpp)
+  models/shenzhenbuff.cpp
+  debug/visualize.cpp
+  detection/refiner.cpp)
 target_link_libraries(auto_buff_detection PUBLIC tools ${OpenCV_LIBS} openvino::runtime)
 
 # 仓库根目录(编译期写死):config 里的相对模型路径按仓库根解析。
@@ -17,12 +19,12 @@ target_compile_definitions(auto_buff_detection PRIVATE RM_AUTO_BUFF_ROOT="${PROJ
 set(RM_AUTO_BUFF_MODELS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/models")
 
 # 单元测试。默认读取 test/ 目录下所有以 "test" 开头的视频并输出标注视频;
-# ctest 用 --self-test 只跑配置与模型 smoke,不读视频。
+# 没有视频时 test 程序内部回退为自检(config 解析 + model smoke)。
 add_executable(auto_buff_detection_test detection/test.cpp)
 target_link_libraries(auto_buff_detection_test PRIVATE auto_buff_detection)
 target_compile_definitions(auto_buff_detection_test PRIVATE
   RM_AUTO_BUFF_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test"
   RM_AUTO_BUFF_MODELS_DIR="${RM_AUTO_BUFF_MODELS_DIR}")
 
-add_test(NAME auto_buff_detection COMMAND auto_buff_detection_test --self-test)
+add_test(NAME auto_buff_detection COMMAND auto_buff_detection_test)
 set_tests_properties(auto_buff_detection PROPERTIES TIMEOUT 180)

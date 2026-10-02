@@ -6,6 +6,7 @@ endif()
 add_library(auto_armor_detection STATIC
   detection/detector.cpp
   detection/green_light.cpp
+  debug/visualize.cpp
   models/model.cpp
   models/shenzhen_model.cpp)
 target_link_libraries(auto_armor_detection PUBLIC tools ${OpenCV_LIBS} openvino::runtime)
@@ -21,6 +22,7 @@ set(RM_AUTO_ARMOR_MODELS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/models")
 add_executable(auto_armor_detection_test detection/test.cpp)
 target_link_libraries(auto_armor_detection_test PRIVATE auto_armor_detection)
 target_compile_definitions(auto_armor_detection_test PRIVATE
-  RM_AUTO_ARMOR_MODELS_DIR="${RM_AUTO_ARMOR_MODELS_DIR}")
+  RM_AUTO_ARMOR_MODELS_DIR="${RM_AUTO_ARMOR_MODELS_DIR}"
+  RM_AUTO_ARMOR_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test")
 add_test(NAME auto_armor_detection COMMAND auto_armor_detection_test)
 set_tests_properties(auto_armor_detection PROPERTIES TIMEOUT 180)

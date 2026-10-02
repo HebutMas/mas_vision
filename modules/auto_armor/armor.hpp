@@ -72,4 +72,49 @@ inline void filter_by_color(std::vector<Armor2d> &armors, Color color)
     armors.erase(std::remove_if(armors.begin(), armors.end(), [color](const Armor2d &armor) { return armor.color != color; }), armors.end());
 }
 
+// 类别 / 颜色的可读名(用于可视化与日志)
+[[nodiscard]] inline const char *kind_name(Kind kind)
+{
+    switch (kind)
+    {
+    case Kind::small:
+        return "small";
+    case Kind::large:
+        return "large";
+    case Kind::outpost:
+        return "outpost";
+    case Kind::base:
+        return "base";
+    case Kind::sentry:
+        return "sentry";
+    case Kind::hero:
+        return "hero";
+    case Kind::engineer:
+        return "engineer";
+    case Kind::infantry1:
+        return "infantry1";
+    case Kind::infantry2:
+        return "infantry2";
+    case Kind::infantry3:
+        return "infantry3";
+    }
+    return "unknown";
+}
+
+[[nodiscard]] inline const char *color_name(Color color)
+{
+    switch (color)
+    {
+    case Color::red:
+        return "red";
+    case Color::blue:
+        return "blue";
+    case Color::gray:
+        return "gray";
+    case Color::purple:
+        return "purple";
+    }
+    return "unknown";
+}
+
 } // namespace rm::armor

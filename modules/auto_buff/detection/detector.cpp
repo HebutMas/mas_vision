@@ -40,6 +40,7 @@ DetectorConfig load_detector_config(const tools::config::Config &config)
     cfg.keypoint_confidence_threshold = static_cast<float>(config.value<double>("buff.keypoint_confidence_threshold", 0.8));
     cfg.nms_distance_threshold        = static_cast<float>(config.value<double>("buff.nms_distance_threshold", 30.0));
     cfg.min_valid_keypoints           = config.value<int>("buff.min_valid_keypoints", 3);
+    cfg.refiner                       = load_refiner_config(config);
     return cfg;
 }
 
@@ -207,6 +208,7 @@ struct Detector::Impl
                     suppressed[j] = true;
                 }
             }
+            candidates[i].refinement = refine(bgr, candidates[i], config_.refiner);
             result.runes.push_back(candidates[i]);
         }
         return result;

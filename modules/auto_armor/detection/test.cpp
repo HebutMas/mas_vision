@@ -1,8 +1,11 @@
+#include "modules/auto_armor/debug/visualize.hpp"
 #include "modules/auto_armor/detection/detector.hpp"
 #include "modules/auto_armor/detection/green_light.hpp"
 #include "modules/auto_armor/models/shenzhen_model.hpp"
 #include "tools/debug/debug.hpp"
 
+#include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -16,6 +19,7 @@
 
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/videoio.hpp>
 
 namespace
 {
@@ -244,6 +248,157 @@ void report_debug(const cv::Mat &image, const rm::armor::Detector::Result &resul
 }
 #endif
 
+// 默认用 0526 模型 + CPU
+rm::armor::DetectorConfig make_config()
+{
+    rm::armor::DetectorConfig config;
+    config.model   = std::string(RM_AUTO_ARMOR_MODELS_DIR) + "/shenzhen-0526.onnx";
+    config.device  = "CPU";
+    config.input_w = 640;
+    config.input_h = 640;
+    return config;
+}
+
+bool has_video_extension(const std::filesystem::path &path)
+{
+    std::string ext = path.extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    static const std::array<const char *, 7> exts{".mp4", ".avi", ".mkv", ".mov", ".flv", ".webm", ".m4v"};
+    return std::any_of(exts.begin(), exts.end(), [&](const char *e) { return ext == e; });
+}
+
+bool has_image_extension(const std::filesystem::path &path)
+{
+    std::string ext = path.extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    static const std::array<const char *, 6> exts{".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"};
+    return std::any_of(exts.begin(), exts.end(), [&](const char *e) { return ext == e; });
+}
+
+// 找出 test/ 目录下所有以 "test" 开头的视频或图片(跳过已生成的 *_detected.*)。
+std::vector<std::string> find_test_inputs(const std::string &dir)
+{
+    std::vector<std::string> inputs;
+    if (!std::filesystem::is_directory(dir))
+    {
+        return inputs;
+    }
+    for (const auto &entry : std::filesystem::directory_iterator(dir))
+    {
+        if (!entry.is_regular_file())
+        {
+            continue;
+        }
+        const auto       &path = entry.path();
+        const std::string name = path.filename().string();
+        if (name.find("_detected") != std::string::npos)
+        {
+            continue;
+        }
+        if (path.stem().string().rfind("test", 0) != 0)
+        {
+            continue;
+        }
+        if (!has_video_extension(path) && !has_image_extension(path))
+        {
+            continue;
+        }
+        inputs.push_back(path.string());
+    }
+    std::sort(inputs.begin(), inputs.end());
+    return inputs;
+}
+
+// 在图上叠加识别结果
+cv::Mat annotate(const cv::Mat &image, const rm::armor::Detector::Result &result, int frame_index = -1, double latency_ms = 0.0)
+{
+    cv::Mat vis = image.clone();
+    rm::armor::draw(vis, result);
+    if (frame_index >= 0)
+    {
+        const std::string hud = cv::format("frame %d | armor %d | %.1f ms", frame_index, static_cast<int>(result.armors.size()), latency_ms);
+        cv::putText(vis, hud, {8, 24}, cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 255), 2);
+    }
+    return vis;
+}
+
+// 读视频逐帧检测并输出标注视频 *_detected.mp4(失败回退 XVID/.avi、MJPG/.avi)。
+void test_video(const std::string &path)
+{
+    cv::VideoCapture capture(path);
+    if (!capture.isOpened())
+    {
+        check(false, "open video " + path);
+        return;
+    }
+
+    cv::Mat frame;
+    if (!capture.read(frame) || frame.empty())
+    {
+        check(false, "read first frame " + path);
+        return;
+    }
+
+    const double                fps_raw = capture.get(cv::CAP_PROP_FPS);
+    const double                fps     = (fps_raw > 0.0 && fps_raw <= 240.0) ? fps_raw : 25.0;
+    const std::filesystem::path input(path);
+
+    std::string     output = (input.parent_path() / (input.stem().string() + "_detected.mp4")).string();
+    cv::VideoWriter writer;
+    bool            opened = writer.open(output, cv::VideoWriter::fourcc('m', 'p', '4', 'v'), fps, frame.size());
+    if (!opened)
+    {
+        output = (input.parent_path() / (input.stem().string() + "_detected.avi")).string();
+        opened = writer.open(output, cv::VideoWriter::fourcc('X', 'V', 'I', 'D'), fps, frame.size());
+    }
+    if (!opened)
+    {
+        opened = writer.open(output, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), fps, frame.size());
+    }
+    if (!opened)
+    {
+        check(false, "open writer for " + output);
+        return;
+    }
+
+    rm::armor::Detector detector(make_config());
+    int                index             = 0;
+    int                frames_with_armor = 0;
+    int                total_armors      = 0;
+    double             total_ms          = 0.0;
+
+    while (!frame.empty())
+    {
+        const auto   begin      = std::chrono::steady_clock::now();
+        const auto   result     = detector.detect(frame);
+        const double latency_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count();
+        total_ms += latency_ms;
+
+        if (!result.armors.empty())
+        {
+            ++frames_with_armor;
+            total_armors += static_cast<int>(result.armors.size());
+        }
+
+        writer.write(annotate(frame, result, index, latency_ms));
+        if (index % 50 == 0)
+        {
+            std::cout << "  [video] frame " << index << " armors=" << result.armors.size() << " " << latency_ms << " ms\n";
+        }
+        ++index;
+        if (!capture.read(frame))
+        {
+            break;
+        }
+    }
+
+    const double avg_ms = (index > 0) ? total_ms / index : 0.0;
+    std::cout << "[video] " << path << "\n"
+              << "  frames=" << index << " with_armor=" << frames_with_armor << " armors=" << total_armors << "\n"
+              << "  avg_latency=" << avg_ms << " ms (" << (avg_ms > 0.0 ? 1000.0 / avg_ms : 0.0) << " fps)\n"
+              << "  output=" << output << "\n";
+}
+
 // 用真实图片跑一帧,打印检测结果,用于目视验收;默认用 models/test.png。
 void test_image(const std::string &path)
 {
@@ -256,15 +411,16 @@ void test_image(const std::string &path)
         return;
     }
 
-    DetectorConfig config;
-    config.model  = std::string(RM_AUTO_ARMOR_MODELS_DIR) + "/shenzhen-0526.onnx";
-    config.device = "CPU";
-    Detector detector(config);
+    Detector detector(make_config());
 
     const auto   begin      = std::chrono::steady_clock::now();
     const auto   result     = detector.detect(image);
     const double latency_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count();
     check(!result.armors.empty(), "detect finds armor(s) on " + path);
+
+    const std::filesystem::path input(path);
+    const std::string           output = (input.parent_path() / (input.stem().string() + "_detected.png")).string();
+    cv::imwrite(output, annotate(image, result, -1, latency_ms));
 
     std::cout << "[image] " << path << " -> " << result.armors.size() << " armor(s) (" << latency_ms << " ms)\n";
     for (const auto &armor : result.armors)
@@ -272,6 +428,8 @@ void test_image(const std::string &path)
         std::cout << "  conf=" << armor.confidence << " kind=" << static_cast<int>(armor.kind) << " color=" << static_cast<int>(armor.color)
                   << " corners=" << armor.corners[0] << armor.corners[1] << armor.corners[2] << armor.corners[3] << "\n";
     }
+
+    std::cout << "  output=" << output << "\n";
 
 #ifdef RM_DEBUG
     report_debug(image, result, latency_ms);
@@ -347,15 +505,65 @@ void test_config_path()
 
 int main(int argc, char **argv)
 {
-    const std::string path = argc > 1 ? argv[1] : std::string(RM_AUTO_ARMOR_MODELS_DIR) + "/test.png";
+    bool        self_test = false;
+    std::string input;
+    for (int i = 1; i < argc; ++i)
+    {
+        const std::string arg = argv[i];
+        if (arg == "--self-test")
+        {
+            self_test = true;
+        }
+        else if (input.empty())
+        {
+            input = arg;
+        }
+    }
 
     test_decode();
     test_green_light();
     test_color_gate();
     test_config_path();
     test_model_smoke();
-    test_image(path);
-    bench(path);
+
+    if (!self_test)
+    {
+        if (!input.empty())
+        {
+            if (has_video_extension(input))
+            {
+                test_video(input);
+            }
+            else
+            {
+                test_image(input);
+            }
+        }
+        else
+        {
+            const std::vector<std::string> inputs = find_test_inputs(RM_AUTO_ARMOR_TEST_DIR);
+            if (inputs.empty())
+            {
+                const std::string default_image = std::string(RM_AUTO_ARMOR_MODELS_DIR) + "/test.png";
+                test_image(default_image);
+                bench(default_image);
+            }
+            else
+            {
+                for (const auto &item : inputs)
+                {
+                    if (has_video_extension(item))
+                    {
+                        test_video(item);
+                    }
+                    else
+                    {
+                        test_image(item);
+                    }
+                }
+            }
+        }
+    }
 
     std::cout << (failures == 0 ? "auto_armor test passed\n" : "auto_armor test failed\n");
     return failures == 0 ? 0 : 1;

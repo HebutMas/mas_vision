@@ -52,6 +52,18 @@ buff:
   keypoint_confidence_threshold: 0.8 # 单关键点置信度阈值
   nms_distance_threshold: 30.0 # 中心距 NMS 阈值(像素)
   min_valid_keypoints: 3 # 有效关键点少于此数则丢弃
+  refine: # 识别后精修(深大 RP-26Rune 精简版)
+    red_minus_blue_threshold: 60 # 红方颜色差分(R-B)二值化阈值
+    blue_minus_red_threshold: 62 # 蓝方颜色差分(B-R)二值化阈值
+    armor_module_area_relative_error_threshold: 0.35 # 装甲板轮廓面积相对网络框面积的允许误差
+    light_arm_line_samples: 30 # 灯臂连线是否穿轮廓的采样点数
+    solidity_threshold_ellipse: 0.8 # 装甲板(椭圆)轮廓最小 solidity
+    solidity_threshold_rectangular: 0.66 # 未激活灯臂(矩形)轮廓最小 solidity
+    expect_aspect_ratio: 5.0 # 未激活灯臂期望长宽比
+    aspect_ratio_relative_error_threshold: 0.42 # 长宽比允许相对误差
+    approx_error_tolerance: 0.01 # 已激活灯臂多边形近似相对容差
+    roi_margin_ratio: 0.15 # ROI 相对五点外接框的外扩比例
+    border_margin: 2.0 # 贴边判定的边界距离(像素)
 track:
   algorithm: null
 shoot:
