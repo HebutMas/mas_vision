@@ -20,6 +20,11 @@ set(APPS infantry calibration)
 # 远程调试(Rerun):默认开启。可在配置时用 -DRM_DEBUG=OFF 关闭,跳过 Rerun/Arrow 编译。
 option(RM_DEBUG "Enable Rerun remote-debugging (builds Arrow, slow)" ON)
 
+# OpenVINO配置路径
+if(NOT OpenVINO_DIR AND EXISTS "/opt/openvino/runtime/cmake/OpenVINOConfig.cmake")
+  set(OpenVINO_DIR "/opt/openvino/runtime/cmake")
+endif()
+
 find_package(OpenCV REQUIRED)
 find_package(yaml-cpp REQUIRED)
 

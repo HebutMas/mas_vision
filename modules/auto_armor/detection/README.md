@@ -120,24 +120,6 @@ detector:
 
 `genre` 额外含一个全 0 的 UNKNOWN 类别(下标 0),解码时直接丢弃。
 
-## 构建、测试
-
-```bash
-cmake --build build -j4
-ctest --test-dir build -R auto_armor --output-on-failure
-```
-
-```bash
-./build/modules/auto_armor/auto_armor_detection_test                 # 用 models/test.png
-./build/modules/auto_armor/auto_armor_detection_test path/to/img.png # 指定图片
-```
-
-## 性能(Ryzen 7 8845H,640×640,CPU,LATENCY 模式)
-
-| 模型 | 延迟 | 帧率 |
-|---|---|---|
-| shenzhen-0526 | ~4.5 ms | ~220 fps |
-| shenzhen-0708 | ~3.3 ms | ~300 fps |
 
 ## 扩展新模型
 

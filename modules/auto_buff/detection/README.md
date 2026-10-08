@@ -133,21 +133,7 @@ buff:
 结果写入 `Rune2d::refinement`(`RuneRefinement`):三类轮廓 + `is_armor_module_usable` /
 `is_light_arm_usable` / `is_center_r_usable`。
 
-## 构建、测试
 
-```bash
-cmake --build build -j4
-ctest --test-dir build -R auto_buff --output-on-failure
-```
-
-```bash
-# 自动读取 test/ 下所有以 "test" 开头的视频/图片并输出 *_detected.*
-./build/modules/auto_buff/auto_buff_detection_test
-# 指定输入
-./build/modules/auto_buff/auto_buff_detection_test path/to/test_video.mp4
-```
-
-`--self-test` 只跑配置解析、模型 smoke 与合成精修用例,不读视频。
 
 ## 扩展新模型
 

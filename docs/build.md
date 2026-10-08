@@ -101,7 +101,7 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
 验证
 
 ```bash
-./build/modules/auto_armor/auto_armor_detection_test
+./build/modules/auto_armor/auto_armor_test
 ```
 
 ## 四、海康 MVS SDK
