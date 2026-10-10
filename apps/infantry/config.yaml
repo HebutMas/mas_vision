@@ -19,6 +19,10 @@ hikcamera:
     y: 0
     width: 0 # <=0:整幅
     height: 0 # <=0:整幅
+  #相机内参
+  camera_matrix: [1722.231837421459, 0.0, 701.3056440882832, 0.0, 1724.876404292754, 564.5821718351237, 0.0, 0.0, 1.0]
+  distort_coeff: [-0.064232403853946, -0.087667493884102, 0.0, 0.0, 0.792381808294582]
+  translation: [0.0, 0.0, 0.0] # 云台旋转中心到相机光心平移距离,云台系(米)，在sw上测
 usbcamera:
   device_path: /dev/video0
   width: 1280
@@ -29,42 +33,49 @@ usbcamera:
   exposure: 50 # 仅手动模式
   gain: 20 # 仅手动模式
   auto_wb: 1 # 0=禁用,1=启用
-detector:
-  model: modules/auto_armor/models/shenzhen-0526.onnx # 相对仓库根目录
-  device: CPU
-  input: [640, 640]
-  min_confidence: 0.5
-  score_threshold: 0.7
-  nms_threshold: 0.3
-  roi: {enable: false, x: 420, y: 50, width: 600, height: 600}
-  green_light: # 前哨站/基地绿灯滤除
-    enable: true
-    green_threshold: 120
-    min_area: 20
-    min_circularity: 0.6
-    max_aspect_ratio: 1.5
-  enemy_color: "" # 颜色判断，空代表都识别
-# 能量机关识别
-buff:
-  model: modules/auto_buff/models/shenzhenbuff-0624.onnx # 相对仓库根目录
-  device: CPU
-  confidence_threshold: 0.8 # 类别置信度阈值
-  keypoint_confidence_threshold: 0.8 # 单关键点置信度阈值
-  nms_distance_threshold: 30.0 # 中心距 NMS 阈值(像素)
-  min_valid_keypoints: 3 # 有效关键点少于此数则丢弃
-  refine: # 识别后精修(深大 RP-26Rune 精简版)
-    red_minus_blue_threshold: 60 # 红方颜色差分(R-B)二值化阈值
-    blue_minus_red_threshold: 62 # 蓝方颜色差分(B-R)二值化阈值
-    armor_module_area_relative_error_threshold: 0.35 # 装甲板轮廓面积相对网络框面积的允许误差
-    light_arm_line_samples: 30 # 灯臂连线是否穿轮廓的采样点数
-    solidity_threshold_ellipse: 0.8 # 装甲板(椭圆)轮廓最小 solidity
-    solidity_threshold_rectangular: 0.66 # 未激活灯臂(矩形)轮廓最小 solidity
-    expect_aspect_ratio: 5.0 # 未激活灯臂期望长宽比
-    aspect_ratio_relative_error_threshold: 0.42 # 长宽比允许相对误差
-    approx_error_tolerance: 0.01 # 已激活灯臂多边形近似相对容差
-    roi_margin_ratio: 0.15 # ROI 相对五点外接框的外扩比例
-    border_margin: 2.0 # 贴边判定的边界距离(像素)
-track:
-  algorithm: null
-shoot:
-  algorithm: null
+# 自瞄
+auto_aim:
+  detector:
+    model: modules/auto_armor/models/shenzhen-0526.onnx # 相对仓库根目录
+    device: CPU
+    input: [640, 640]
+    min_confidence: 0.5
+    score_threshold: 0.7
+    nms_threshold: 0.3
+    roi: {enable: false, x: 420, y: 50, width: 600, height: 600}
+    enemy_color: "" # 颜色判断，空代表都识别
+    # 灯条优化参数
+    light:
+      refine_min_width_px: 3.0 # 最小灯条宽度
+      refine_start_ratio: 0.4 # 从质心沿对称轴 0.4L 处开始搜
+      refine_end_ratio: 0.6 # 搜到 0.6L(窗口 = 0.2L)
+
+  track: {}
+      
+  shoot: {}
+
+# 打符
+auto_buff:
+  detector:
+    model: modules/auto_buff/models/shenzhenbuff-0624.onnx # 相对仓库根目录
+    device: CPU
+    confidence_threshold: 0.8 # 类别置信度阈值
+    keypoint_confidence_threshold: 0.8 # 单关键点置信度阈值
+    nms_distance_threshold: 30.0 # 中心距 NMS 阈值(像素)
+    min_valid_keypoints: 3 # 有效关键点少于此数则丢弃
+    refine: # 识别后精修(深大 RP-26Rune 精简版)
+      red_minus_blue_threshold: 60 # 红方颜色差分(R-B)二值化阈值
+      blue_minus_red_threshold: 62 # 蓝方颜色差分(B-R)二值化阈值
+      armor_module_area_relative_error_threshold: 0.35 # 装甲板轮廓面积相对网络框面积的允许误差
+      light_arm_line_samples: 30 # 灯臂连线是否穿轮廓的采样点数
+      solidity_threshold_ellipse: 0.8 # 装甲板(椭圆)轮廓最小 solidity
+      solidity_threshold_rectangular: 0.66 # 未激活灯臂(矩形)轮廓最小 solidity
+      expect_aspect_ratio: 5.0 # 未激活灯臂期望长宽比
+      aspect_ratio_relative_error_threshold: 0.42 # 长宽比允许相对误差
+      approx_error_tolerance: 0.01 # 已激活灯臂多边形近似相对容差
+      roi_margin_ratio: 0.15 # ROI 相对五点外接框的外扩比例
+      border_margin: 2.0 # 贴边判定的边界距离(像素)
+
+  track: {}
+
+  shoot: {}

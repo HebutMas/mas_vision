@@ -115,14 +115,14 @@ void test_config()
     const std::string yaml_path = (std::filesystem::temp_directory_path() / "rm_auto_buff_config_test.yaml").string();
     {
         std::ofstream out(yaml_path);
-        out << "buff:\n  model: modules/auto_buff/models/shenzhenbuff-0624.onnx\n  refine:\n    border_margin: 3.5\n";
+        out << "auto_buff:\n  detector:\n    model: modules/auto_buff/models/shenzhenbuff-0624.onnx\n    refine:\n      border_margin: 3.5\n";
     }
 
     const tools::config::Config    config(yaml_path);
     const rm::buff::DetectorConfig detector = rm::buff::load_detector_config(config);
     check(std::filesystem::path(detector.model).is_absolute(), "relative model path resolves to absolute");
     check(std::filesystem::exists(detector.model), "resolved model path exists: " + detector.model);
-    check(detector.refiner.border_margin > 3.0, "buff.refine parsed");
+    check(detector.refiner.border_margin > 3.0, "auto_buff.detector.refine parsed");
 }
 
 // 合成红方符叶:中心大圆=装甲板,左侧长条=未激活灯臂,最左小圆=中心 R,

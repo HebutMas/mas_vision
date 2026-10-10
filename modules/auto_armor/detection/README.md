@@ -15,25 +15,24 @@ BGR 图
      角点做反算 p * (1/scale) + offset
   → NMSBoxes(score_threshold, nms_threshold)
   → (可选) 颜色门控 enemy_color
-  → (可选) 绿灯滤除,仅在识别到前哨站/基地时触发
+  → 灯条角点优化 -> refine_lightbar() 精修 -> 写回 armor.corners + 成对放进 lightbars
   → Result{armors, lightbars}
 ```
 
 - **letterbox** 只缩放、不居中,多余区域补 0
 - **角点顺序** 固定为 `tl, tr, br, bl`(像素坐标),模型原始顺序 `lt, lb, rb, rt` 在解码时转换。
-- 绿灯过滤代码只在检测到建筑类时才执行
 
 ## 文件职责
 
 | 文件 | 说明 |
 |---|---|
-| `detector.hpp` / `detector.cpp` | 通用 `Detector`:模型加载、预处理、推理、NMS、ROI 与后处理编排 |
-| `green_light.hpp` / `green_light.cpp` | 前哨站/基地顶灯搜索与「灯上方建筑板」滤除 |
+| `detector.hpp` / `detector.cpp` | 通用 `Detector`:模型加载、预处理、推理、NMS、ROI、灯条提取与后处理编排 |
+| `lightbar.hpp` / `lightbar.cpp` | 灯条角点优化:`refine_lightbar()` |
 | `../models/model.hpp` / `model.cpp` | 模型输出解析器接口 `ModelSpec` 与注册表 `find_model_spec` |
 | `../models/shenzhen_model.hpp` / `shenzhen_model.cpp` | shenzhen 模型的输出布局与解码实现 |
 | `../models/shenzhen-0526.onnx` / `shenzhen-0708.onnx` | 模型权重 |
 | `../models/test.png` | 测试用例图 |
-| `test.cpp` | 单元测试 |
+| `../../test.cpp` | 主测试:用 `Detector` 跑 `models/test.png`,画框/角点/灯条并存图 |
 
 ## 接口
 
@@ -48,8 +47,8 @@ struct DetectorConfig
     float       nms_threshold{0.3F};                    // NMS IoU 阈值
     bool        use_roi{false};                         // 是否只在 roi 内检测
     cv::Rect    roi;                                    // use_roi 为 true 时生效,自动与图像求交
-    GreenLightConfig     green_light;                   // 绿灯滤除
     std::optional<Color> enemy_color;                   // 颜色门控,nullopt = 不过滤
+    LightRefineParams    light;                         // 灯条优化参数
 };
 
 [[nodiscard]] DetectorConfig load_detector_config(const tools::config::Config &config);
@@ -58,6 +57,7 @@ class Detector
 {
   public:
     explicit Detector(const DetectorConfig &config);
+    // lightbars:第 i 块装甲板的两条 = [2i](左,tl->bl)、[2i+1](右,tr->br),一一对应。
     struct Result { std::vector<Armor2d> armors; std::vector<Lightbar2d> lightbars; };
     Result detect(const cv::Mat &bgr);
 };
@@ -81,13 +81,11 @@ detector:
   score_threshold: 0.7
   nms_threshold: 0.3
   roi: {enable: false, x: 420, y: 50, width: 600, height: 600}
-  green_light: # 前哨站/基地绿灯滤除
-    enable: true
-    green_threshold: 120
-    min_area: 20
-    min_circularity: 0.6
-    max_aspect_ratio: 1.5
   enemy_color: "" # 颜色判断,空代表都识别
+  light: # 灯条优化参数
+    refine_min_width_px: 3.0
+    refine_start_ratio: 0.4
+    refine_end_ratio: 0.6
 ```
 
 | 键 | 默认 | 说明 |
@@ -100,12 +98,9 @@ detector:
 | `detector.nms_threshold` | `0.3` | NMS IoU 阈值 |
 | `detector.roi.enable` | `false` | 是否用 ROI |
 | `detector.roi.x/y/width/height` | `0` | ROI 区域 |
-| `detector.green_light.enable` | `true` | 绿灯滤除总开关 |
-| `detector.green_light.green_threshold` | `120` | G 通道亮度下限 |
-| `detector.green_light.min_area` | `20` | 绿灯最小面积 |
-| `detector.green_light.min_circularity` | `0.6` | 最小圆度(绿灯近似圆形) |
-| `detector.green_light.max_aspect_ratio` | `1.5` | 最大长宽比 |
 | `detector.enemy_color` | `""` | 颜色门控,`red`/`blue`/`gray`/`purple`;空 = 不过滤 |
+| `detector.light.refine_min_width_px` | `3.0` | 最小灯条宽度 |
+| `detector.light.refine_start_ratio` / `refine_end_ratio` | `0.4` / `0.6` | 沿对称轴的搜索窗口 |
 
 ## shenzhen 模型输出布局
 

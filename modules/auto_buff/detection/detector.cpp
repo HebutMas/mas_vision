@@ -29,17 +29,17 @@ namespace
 DetectorConfig load_detector_config(const tools::config::Config &config)
 {
     DetectorConfig cfg;
-    cfg.model = config.require<std::string>("buff.model");
+    cfg.model = config.require<std::string>("auto_buff.detector.model");
     // model路径
     if (!cfg.model.empty() && std::filesystem::path(cfg.model).is_relative())
     {
         cfg.model = (std::filesystem::path(RM_AUTO_BUFF_ROOT) / cfg.model).string();
     }
-    cfg.device                        = config.value<std::string>("buff.device", "CPU");
-    cfg.confidence_threshold          = static_cast<float>(config.value<double>("buff.confidence_threshold", 0.8));
-    cfg.keypoint_confidence_threshold = static_cast<float>(config.value<double>("buff.keypoint_confidence_threshold", 0.8));
-    cfg.nms_distance_threshold        = static_cast<float>(config.value<double>("buff.nms_distance_threshold", 30.0));
-    cfg.min_valid_keypoints           = config.value<int>("buff.min_valid_keypoints", 3);
+    cfg.device                        = config.value<std::string>("auto_buff.detector.device", "CPU");
+    cfg.confidence_threshold          = static_cast<float>(config.value<double>("auto_buff.detector.confidence_threshold", 0.8));
+    cfg.keypoint_confidence_threshold = static_cast<float>(config.value<double>("auto_buff.detector.keypoint_confidence_threshold", 0.8));
+    cfg.nms_distance_threshold        = static_cast<float>(config.value<double>("auto_buff.detector.nms_distance_threshold", 30.0));
+    cfg.min_valid_keypoints           = config.value<int>("auto_buff.detector.min_valid_keypoints", 3);
     cfg.refiner                       = load_refiner_config(config);
     return cfg;
 }

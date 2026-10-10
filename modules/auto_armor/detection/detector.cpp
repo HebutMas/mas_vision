@@ -1,5 +1,7 @@
 #include "modules/auto_armor/detection/detector.hpp"
 
+#include "modules/auto_armor/detection/lightbar.hpp"
+
 #include "modules/auto_armor/models/model.hpp"
 
 #include <algorithm>
@@ -19,39 +21,40 @@ namespace rm::armor
 DetectorConfig load_detector_config(const tools::config::Config &config)
 {
     DetectorConfig cfg;
-    cfg.model = config.require<std::string>("detector.model");
+    cfg.model = config.require<std::string>("auto_aim.detector.model");
     // model 允许相对路径:相对仓库根解析(不依赖启动时的工作目录)。
     if (!cfg.model.empty() && std::filesystem::path(cfg.model).is_relative())
     {
         cfg.model = (std::filesystem::path(RM_AUTO_ARMOR_ROOT) / cfg.model).string();
     }
-    cfg.device          = config.value<std::string>("detector.device", "CPU");
-    cfg.min_confidence  = static_cast<float>(config.value<double>("detector.min_confidence", 0.5));
-    cfg.score_threshold = static_cast<float>(config.value<double>("detector.score_threshold", 0.7));
-    cfg.nms_threshold   = static_cast<float>(config.value<double>("detector.nms_threshold", 0.3));
+    cfg.device          = config.value<std::string>("auto_aim.detector.device", "CPU");
+    cfg.min_confidence  = static_cast<float>(config.value<double>("auto_aim.detector.min_confidence", 0.5));
+    cfg.score_threshold = static_cast<float>(config.value<double>("auto_aim.detector.score_threshold", 0.7));
+    cfg.nms_threshold   = static_cast<float>(config.value<double>("auto_aim.detector.nms_threshold", 0.3));
 
     // input 为 [width, height];缺省或长度不符时保持 640x640。
-    const auto input = config.value<std::vector<int>>("detector.input", {640, 640});
+    const auto input = config.value<std::vector<int>>("auto_aim.detector.input", {640, 640});
     if (input.size() == 2)
     {
         cfg.input_w = input[0];
         cfg.input_h = input[1];
     }
 
-    cfg.use_roi    = config.value<bool>("detector.roi.enable", false);
-    cfg.roi.x      = config.value<int>("detector.roi.x", 0);
-    cfg.roi.y      = config.value<int>("detector.roi.y", 0);
-    cfg.roi.width  = config.value<int>("detector.roi.width", 0);
-    cfg.roi.height = config.value<int>("detector.roi.height", 0);
-
-    cfg.green_light.enable           = config.value<bool>("detector.green_light.enable", true);
-    cfg.green_light.green_threshold  = config.value<int>("detector.green_light.green_threshold", 120);
-    cfg.green_light.min_area         = config.value<double>("detector.green_light.min_area", 20.0);
-    cfg.green_light.min_circularity  = config.value<double>("detector.green_light.min_circularity", 0.6);
-    cfg.green_light.max_aspect_ratio = config.value<double>("detector.green_light.max_aspect_ratio", 1.5);
+    cfg.use_roi    = config.value<bool>("auto_aim.detector.roi.enable", false);
+    cfg.roi.x      = config.value<int>("auto_aim.detector.roi.x", 0);
+    cfg.roi.y      = config.value<int>("auto_aim.detector.roi.y", 0);
+    cfg.roi.width  = config.value<int>("auto_aim.detector.roi.width", 0);
+    cfg.roi.height = config.value<int>("auto_aim.detector.roi.height", 0);
 
     // 敌方颜色
-    cfg.enemy_color = parse_color(config.value<std::string>("detector.enemy_color", ""));
+    cfg.enemy_color = parse_color(config.value<std::string>("auto_aim.detector.enemy_color", ""));
+
+    // 灯条参数
+    const auto read              = [&config](const std::string &key, double fallback) { return config.value<double>(key, fallback); };
+    cfg.light.refine_min_width   = read("auto_aim.detector.light.refine_min_width_px", cfg.light.refine_min_width);
+    cfg.light.refine_start_ratio = read("auto_aim.detector.light.refine_start_ratio", cfg.light.refine_start_ratio);
+    cfg.light.refine_end_ratio   = read("auto_aim.detector.light.refine_end_ratio", cfg.light.refine_end_ratio);
+
     return cfg;
 }
 
@@ -183,44 +186,23 @@ struct Detector::Impl
             filter_by_color(result.armors, *filter_color);
         }
 
-        // 绿灯滤除:仅在识别到建筑类(前哨站 / 基地)时触发
-        const bool has_building = std::any_of(result.armors.begin(), result.armors.end(),
-                                              [](const Armor2d &armor) { return armor.kind == Kind::outpost || armor.kind == Kind::base; });
-        if (config.green_light.enable && has_building)
+        // 灯条优化
+        result.lightbars.reserve(result.armors.size() * 2);
+        for (auto &armor : result.armors)
         {
-            std::vector<Armor2d> base;
-            std::vector<Armor2d> outpost;
-            for (const auto &armor : result.armors)
+            for (int side = 0; side < 2; ++side)
             {
-                if (armor.kind == Kind::base)
-                {
-                    base.push_back(armor);
-                }
-                else if (armor.kind == Kind::outpost)
-                {
-                    outpost.push_back(armor);
-                }
-            }
+                cv::Point2f upper = armor.corners[side == 0 ? 0 : 1]; // 左:tl,右:tr
+                cv::Point2f lower = armor.corners[side == 0 ? 3 : 2]; // 左:bl,右:br
+                refine_lightbar(upper, lower, bgr, config.light);
 
-            // 分开搜索:同时出现基地与前哨站时,合并 ROI 会过大。
-            std::optional<cv::Rect> green_light;
-            if (!base.empty())
-            {
-                green_light = find_green_light(bgr, base, config.green_light).green_light;
+                armor.corners[side == 0 ? 0 : 1] = upper;
+                armor.corners[side == 0 ? 3 : 2] = lower;
+                result.lightbars.push_back(Lightbar2d{.kind = armor.kind, .color = armor.color, .upper = upper, .lower = lower});
             }
-            if (!outpost.empty())
-            {
-                const auto found = find_green_light(bgr, outpost, config.green_light).green_light;
-                if (found)
-                {
-                    green_light = found;
-                }
-            }
-            if (green_light)
-            {
-                filter_buildings_above_green_light(result.armors, *green_light);
-            }
+            armor.center = 0.25F * (armor.corners[0] + armor.corners[1] + armor.corners[2] + armor.corners[3]);
         }
+
         return result;
     }
 

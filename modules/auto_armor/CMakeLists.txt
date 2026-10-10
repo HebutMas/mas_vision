@@ -6,7 +6,7 @@ endif()
 add_library(auto_armor_detection STATIC
   auto_armor.cpp
   detection/detector.cpp
-  detection/green_light.cpp
+  detection/lightbar.cpp
   debug/visualize.cpp
   models/model.cpp
   models/shenzhen_model.cpp)
@@ -16,7 +16,7 @@ target_link_libraries(auto_armor_detection PUBLIC tools ${OpenCV_LIBS} openvino:
 # 这样从任意工作目录启动都能找到模型。
 target_compile_definitions(auto_armor_detection PRIVATE RM_AUTO_ARMOR_ROOT="${PROJECT_SOURCE_DIR}")
 
-# 模型目录编译期写死,方便测试 / bench 直接定位。
+# 模型目录编译期写死,方便测试直接定位。
 set(RM_AUTO_ARMOR_MODELS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/models")
 
 # 单元测试:整个 auto_armor 的对外接口都在这里验(不是只有 detection)

@@ -22,9 +22,10 @@ usbcamera:
   exposure: 50
   gain: 20
   auto_wb: 0
-detector:
-  algorithm: null
-track:
-  algorithm: null
-shoot:
-  algorithm: null
+auto_aim:
+  detector:
+    algorithm: null
+  track:
+    algorithm: null
+  shoot:
+    algorithm: null

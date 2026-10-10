@@ -113,25 +113,25 @@ RefinerConfig load_refiner_config(const tools::config::Config &config)
 {
     RefinerConfig refiner;
     refiner.red_minus_blue_threshold =
-        config.value<int>("buff.refine.red_minus_blue_threshold", refiner.red_minus_blue_threshold);
+        config.value<int>("auto_buff.detector.refine.red_minus_blue_threshold", refiner.red_minus_blue_threshold);
     refiner.blue_minus_red_threshold =
-        config.value<int>("buff.refine.blue_minus_red_threshold", refiner.blue_minus_red_threshold);
+        config.value<int>("auto_buff.detector.refine.blue_minus_red_threshold", refiner.blue_minus_red_threshold);
     refiner.armor_module_area_relative_error_threshold = config.value<double>(
-        "buff.refine.armor_module_area_relative_error_threshold", refiner.armor_module_area_relative_error_threshold);
+        "auto_buff.detector.refine.armor_module_area_relative_error_threshold", refiner.armor_module_area_relative_error_threshold);
     refiner.light_arm_line_samples =
-        config.value<int>("buff.refine.light_arm_line_samples", refiner.light_arm_line_samples);
+        config.value<int>("auto_buff.detector.refine.light_arm_line_samples", refiner.light_arm_line_samples);
     refiner.solidity_threshold_ellipse =
-        config.value<double>("buff.refine.solidity_threshold_ellipse", refiner.solidity_threshold_ellipse);
+        config.value<double>("auto_buff.detector.refine.solidity_threshold_ellipse", refiner.solidity_threshold_ellipse);
     refiner.solidity_threshold_rectangular =
-        config.value<double>("buff.refine.solidity_threshold_rectangular", refiner.solidity_threshold_rectangular);
+        config.value<double>("auto_buff.detector.refine.solidity_threshold_rectangular", refiner.solidity_threshold_rectangular);
     refiner.expect_aspect_ratio =
-        config.value<double>("buff.refine.expect_aspect_ratio", refiner.expect_aspect_ratio);
+        config.value<double>("auto_buff.detector.refine.expect_aspect_ratio", refiner.expect_aspect_ratio);
     refiner.aspect_ratio_relative_error_threshold = config.value<double>(
-        "buff.refine.aspect_ratio_relative_error_threshold", refiner.aspect_ratio_relative_error_threshold);
+        "auto_buff.detector.refine.aspect_ratio_relative_error_threshold", refiner.aspect_ratio_relative_error_threshold);
     refiner.approx_error_tolerance =
-        config.value<double>("buff.refine.approx_error_tolerance", refiner.approx_error_tolerance);
-    refiner.roi_margin_ratio = config.value<double>("buff.refine.roi_margin_ratio", refiner.roi_margin_ratio);
-    refiner.border_margin    = config.value<double>("buff.refine.border_margin", refiner.border_margin);
+        config.value<double>("auto_buff.detector.refine.approx_error_tolerance", refiner.approx_error_tolerance);
+    refiner.roi_margin_ratio = config.value<double>("auto_buff.detector.refine.roi_margin_ratio", refiner.roi_margin_ratio);
+    refiner.border_margin    = config.value<double>("auto_buff.detector.refine.border_margin", refiner.border_margin);
     return refiner;
 }
 

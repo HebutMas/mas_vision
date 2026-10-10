@@ -68,7 +68,7 @@ try
 
             auto         result    = auto_buff.process(hik_frame.image, color);
             const double detect_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - detect_begin).count();
-            
+
             debug.push(hik_frame.image, frame++, hik_frame.timestamp, state, std::move(result.detection), detect_ms);
         }
         else
@@ -76,7 +76,7 @@ try
             const std::optional<rm::armor::Color> enemy_color = red_mode ? rm::armor::Color::red : rm::armor::Color::blue;
             auto         result    = auto_aim.process(hik_frame.image, enemy_color);
             const double detect_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - detect_begin).count();
-            
+
             debug.push(hik_frame.image, frame++, hik_frame.timestamp, state, std::move(result.detection), detect_ms);
         }
     }

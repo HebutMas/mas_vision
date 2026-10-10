@@ -1,7 +1,7 @@
 #pragma once
 
 #include "modules/auto_armor/armor.hpp"
-#include "modules/auto_armor/detection/green_light.hpp"
+#include "modules/auto_armor/detection/lightbar.hpp"
 #include "tools/config/config.hpp"
 
 #include <memory>
@@ -23,10 +23,11 @@ struct DetectorConfig
     bool        use_roi{false}; // 是否使用 ROI，若为 true，则在 roi 内进行检测，否则在整张图像上进行检测
     cv::Rect    roi;            // ROI 区域，若 use_roi 为 true，则在 roi 内进行检测，否则在整张图像上进行检测
 
-    GreenLightConfig green_light; // 前哨站 / 基地绿灯滤除(仅在识别到建筑类时触发)
-
     // 颜色门控:只保留该颜色(敌方色);nullopt 表示不过滤。
     std::optional<Color> enemy_color;
+
+    // 灯条检测参数
+    LightRefineParams light;
 };
 
 // 从配置读取检测器参数。
