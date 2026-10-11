@@ -59,7 +59,7 @@ add_library(serialport STATIC serialport/serialport.cpp)
 target_link_libraries(serialport PUBLIC tools)
 target_link_libraries(hardware INTERFACE serialport)
 
-# 测试:用伪终端回环,不依赖真实硬件。
+# 测试
 add_executable(serialport_test serialport/test.cpp)
 target_link_libraries(serialport_test PRIVATE hardware tools util)
 

@@ -33,6 +33,11 @@ struct SerialConfig
     std::string flowcontrol{"none"};   // 流控:none / rtscts。
     double      timestamp_offset{0.0}; // IMU 时间戳偏移(秒):到达时刻 + offset。
     speed_t     speed{B115200};        // 由 baudrate 解析的 termios 波特率。
+
+    // IMU 系 -> 云台系 的安装旋转
+    Eigen::Quaternionf    imu_to_gimbal{Eigen::Quaternionf::Identity()};
+    bool                  has_mount{false}; // 是否配置旋转参数
+    std::array<double, 3> mount_rpy_deg{};  // 配置里写的 RPY(仅用于启动日志)
 };
 
 class SerialPort

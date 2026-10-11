@@ -37,6 +37,22 @@ SerialPort::SerialPort(const tools::config::Config &config)
     config_.flowcontrol      = config.require<std::string>("serial.flowcontrol");
     config_.timestamp_offset = config.require<double>("serial.timestamp_offset");
 
+    // IMU -> 云台 的安装旋转
+    if (const auto rpy = config.value<std::vector<double>>("serial.imu_to_gimbal_rpy", {}); !rpy.empty())
+    {
+        if (rpy.size() != 3)
+        {
+            throw std::invalid_argument("serial.imu_to_gimbal_rpy must be [roll, pitch, yaw] in degrees, got " + std::to_string(rpy.size()) +
+                                        " values");
+        }
+        const Eigen::AngleAxisf roll{static_cast<float>(rpy[0] * M_PI / 180.0), Eigen::Vector3f::UnitX()};
+        const Eigen::AngleAxisf pitch{static_cast<float>(rpy[1] * M_PI / 180.0), Eigen::Vector3f::UnitY()};
+        const Eigen::AngleAxisf yaw{static_cast<float>(rpy[2] * M_PI / 180.0), Eigen::Vector3f::UnitZ()};
+        config_.imu_to_gimbal = Eigen::Quaternionf{yaw * pitch * roll}.normalized();
+        config_.has_mount     = true;
+        config_.mount_rpy_deg = {rpy[0], rpy[1], rpy[2]};
+    }
+
     if (config_.bytesize < 5 || config_.bytesize > 8)
     {
         throw std::invalid_argument("serial.bytesize must be 5/6/7/8, got " + std::to_string(config_.bytesize));
@@ -194,6 +210,13 @@ bool SerialPort::open() noexcept
     try
     {
         tools::debug::log(tools::debug::Level::info, "serial connected: " + config_.port + " @" + std::to_string(config_.baudrate), "serial");
+        if (config_.has_mount)
+        {
+            char buffer[160] = {};
+            std::snprintf(buffer, sizeof(buffer), "imu mount: RPY(%.2f, %.2f, %.2f) deg -> quaternion() ", config_.mount_rpy_deg[0],
+                          config_.mount_rpy_deg[1], config_.mount_rpy_deg[2]);
+            tools::debug::log(tools::debug::Level::info, buffer, "serial");
+        }
     }
     catch (...)
     {
@@ -378,6 +401,17 @@ bool SerialPort::serialread()
 
             ReceivePacket packet;
             std::memcpy(&packet, rx_buf_.data() + 1, sizeof(ReceivePacket));
+
+            // q_odom<-gimbal = q_odom<-imu * R_imu<-gimbal
+            if (config_.has_mount)
+            {
+                const Eigen::Quaternionf q_gimbal = (packet.quaternion() * config_.imu_to_gimbal).normalized();
+                packet.qw                         = q_gimbal.w();
+                packet.qx                         = q_gimbal.x();
+                packet.qy                         = q_gimbal.y();
+                packet.qz                         = q_gimbal.z();
+            }
+
             frames_.push(packet);
             // 到达时刻 + timestamp_offset,作为该帧姿态的时间戳存入历史。
             const auto offset = std::chrono::duration<double>(config_.timestamp_offset);

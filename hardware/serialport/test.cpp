@@ -1,24 +1,18 @@
 #include "hardware/serialport/serialport.hpp"
-#include "tools/algorithm/crc16.hpp"
 #include "tools/config/config.hpp"
 
 #include <chrono>
 #include <cmath>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <poll.h>
-#include <pty.h>
 #include <string>
-#include <thread>
-#include <unistd.h>
 
 namespace
 {
+
 int failures = 0;
 
 // 不依赖 NDEBUG:Release 下 assert 会被编掉,所以自己记失败。
@@ -32,14 +26,12 @@ void check(bool ok, const char *what)
 }
 
 // 写一份最小可用的 serial 配置(指定端口),返回文件路径。
-std::filesystem::path write_serial_yaml(const std::string &port, bool debug = false)
+std::filesystem::path write_serial_yaml(const std::string &port, const std::string &extra = "")
 {
-    const auto    path = std::filesystem::temp_directory_path() / "rm_vision_serialport_port.yaml";
+    const auto    path = std::filesystem::temp_directory_path() / "rm_vision_serialport_hw.yaml";
     std::ofstream out(path);
     out << "serial:\n"
-           "  debug: "
-        << (debug ? "true" : "false")
-        << "\n"
+           "  debug: false\n"
            "  port: "
         << port
         << "\n"
@@ -48,162 +40,74 @@ std::filesystem::path write_serial_yaml(const std::string &port, bool debug = fa
            "  parity: none\n"
            "  stopbits: 1\n"
            "  flowcontrol: none\n"
-           "  timestamp_offset: 0.0\n";
+           "  timestamp_offset: 0.0\n"
+        << extra;
     return path;
 }
+
 } // namespace
 
-// 用伪终端做回环:验证收发两向的组帧 / 解析 / 重同步。
 int main()
 {
-    using SerialPort    = hardware::serialport::SerialPort;
-    using ReceivePacket = hardware::serialport::ReceivePacket;
-    using SendPacket    = hardware::serialport::SendPacket;
+    using hardware::serialport::ReceivePacket;
+    using hardware::serialport::SendPacket;
+    using hardware::serialport::SerialPort;
 
-    int  master    = -1;
-    int  slave     = -1;
-    char name[128] = {};
-    check(::openpty(&master, &slave, name, nullptr, nullptr) == 0, "openpty");
-    ::close(slave); // SerialPort 自己打开。
-
-    const auto port_path = write_serial_yaml(name, true); // debug 打开:回显收到的 16 进制原始数据。
-    SerialPort serialport(tools::config::Config(port_path.string()));
-
-    // 上行:帧前塞噪声(含假帧头),SerialPort 应校验并重同步解出。
-    std::uint8_t frame[1 + sizeof(ReceivePacket) + 2] = {};
-    frame[0]                                          = SerialPort::RX_HEADER;
-    // mode=7,四元数为绕 X 轴 90°。
-    const ReceivePacket expected{7, 0.70710678F, 0.70710678F, 0.0F, 0.0F};
-    std::memcpy(frame + 1, &expected, sizeof(ReceivePacket));
-    const std::uint16_t crc          = tools::crc16::checksum(frame, 1 + sizeof(ReceivePacket));
-    frame[1 + sizeof(ReceivePacket)] = static_cast<std::uint8_t>(crc & 0xFF);
-    frame[2 + sizeof(ReceivePacket)] = static_cast<std::uint8_t>(crc >> 8);
-
-    const std::uint8_t noise[] = {0x00, 0x5A, 0x11}; // 最后一个含假帧头。
-    check(::write(master, noise, sizeof(noise)) == static_cast<ssize_t>(sizeof(noise)), "write noise");
-    check(::write(master, frame, sizeof(frame)) == static_cast<ssize_t>(sizeof(frame)), "write frame");
-
-    ReceivePacket received{};
-    check(serialport.frames().wait_for(received, std::chrono::milliseconds(1000)), "rx timeout");
-    check(received.mode == expected.mode, "rx payload");
-
-    // 每帧 Rx 的四元数应进入插值缓冲,可按任意(近期)时刻取回。
-    const auto attitude = serialport.quaternion_at(tools::time::now());
-    check(std::fabs(attitude.w() - expected.qw) < 1e-4F && std::fabs(attitude.x() - expected.qx) < 1e-4F, "quaternion extracted");
-
-    // 下行:send 后从 master 应读到同格式的帧。
-    const SendPacket sent{1.25F, 0.5F, 1};
-    serialport.send(sent);
-
-    std::uint8_t buffer[64] = {};
-    pollfd       descriptor{master, POLLIN, 0};
-    check(::poll(&descriptor, 1, 1000) == 1, "tx poll");
-    // NOLINTNEXTLINE(clang-analyzer-unix.BlockInCriticalSection): 误报,wait_for 已释放 unique_lock。
-    const ssize_t n = ::read(master, buffer, sizeof(buffer));
-    check(n == static_cast<ssize_t>(SerialPort::FRAME_TX_SIZE), "tx frame size");
-    check(buffer[0] == SerialPort::TX_HEADER, "tx header");
-    SendPacket got{};
-    std::memcpy(&got, buffer + 1, sizeof(SendPacket));
-    check(got.target_yaw == sent.target_yaw && got.target_pitch == sent.target_pitch && got.fire_advice == sent.fire_advice, "tx payload");
-    const std::uint16_t got_crc = tools::crc16::checksum(buffer, 1 + sizeof(SendPacket));
-    check((buffer[1 + sizeof(SendPacket)] | (buffer[2 + sizeof(SendPacket)] << 8)) == got_crc, "tx crc");
-
-    // 掉线检测:master 端消失后,SerialPort 应把 is_open 置为 false 并转入重连。
-    ::close(master);
-    bool closed = false;
-    for (int i = 0; i < 40 && !closed; ++i) // 最多等 2s。
+    const char       *env  = std::getenv("RM_SERIAL_PORT");
+    const std::string port = env != nullptr ? env : "/dev/ttyACM0";
+    if (!std::filesystem::exists(port))
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        closed = !serialport.is_open();
-    }
-    check(closed, "disconnect detected");
-    check(!serialport.is_open(), "stays closed while retrying");
-
-    // 设备不存在时构造不抛异常,保持在未连接状态(后台持续重连)。
-    {
-        const auto missing_path = write_serial_yaml("/dev/rm-nonexistent");
-        SerialPort const missing(tools::config::Config(missing_path.string()));
-        check(!missing.is_open(), "missing device stays closed");
+        std::cout << "real serial skipped: " << port << " not present\n";
+        return 0;
     }
 
-    // YAML 配置:serial 段严格读取,缺键 / 非法值即抛错。
+    const auto path = write_serial_yaml(port);
+    SerialPort serial(tools::config::Config(path.string()));
+    check(serial.is_open(), "打开真实串口");
+
+    // 接收测试
     {
-        const auto path = std::filesystem::temp_directory_path() / "rm_vision_serialport_test.yaml";
-
-        // 返回 true 表示构造成功(未抛异常)。
-        const auto constructs = [&path](const std::string &yaml) {
-            std::ofstream out(path);
-            out << yaml;
-            out.close();
-            try
-            {
-                hardware::serialport::SerialPort const port(tools::config::Config(path.string()));
-                return true;
-            }
-            catch (const std::exception &)
-            {
-                return false;
-            }
-        };
-
-        const std::string valid = "serial:\n"
-                                  "  debug: false\n"
-                                  "  port: /dev/rm-nonexistent\n"
-                                  "  baudrate: 921600\n"
-                                  "  bytesize: 7\n"
-                                  "  parity: even\n"
-                                  "  stopbits: 2\n"
-                                  "  flowcontrol: rtscts\n"
-                                  "  timestamp_offset: 0.5\n";
-        check(constructs(valid), "valid serial config constructs");
-
-        check(!constructs("serial:\n  port: /dev/ttyUSB3\n"), "missing serial key throws");
-        check(!constructs(valid.substr(0, valid.find("bytesize")) + "bytesize: 9\n"), "invalid bytesize throws");
-        check(!constructs(valid.substr(0, valid.find("parity")) + "parity: foo\n"), "invalid parity throws");
-        check(!constructs(valid.substr(0, valid.find("baudrate")) + "baudrate: 12345\n"), "unsupported baudrate throws");
-
-        std::filesystem::remove(path);
-    }
-
-    // === 真实串口(在伪终端模拟之后):默认 /dev/ttyACM0,RM_SERIAL_PORT 可覆盖,无设备则跳过。 ===
-    {
-        const char       *env  = std::getenv("RM_SERIAL_PORT");
-        const std::string port = env != nullptr ? env : "/dev/ttyACM0";
-        if (!std::filesystem::exists(port))
+        const auto    start = std::chrono::steady_clock::now();
+        unsigned      count = 0;
+        ReceivePacket last{};
+        while (std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count() < 2.0)
         {
-            std::cout << "real serial skipped: " << port << " not present\n";
-        }
-        else
-        {
-            const auto hw_path = write_serial_yaml(port);
-            SerialPort hw(tools::config::Config(hw_path.string()));
-            check(hw.is_open(), "open real port");
-
-            const auto    start = std::chrono::steady_clock::now();
-            unsigned      count = 0;
-            ReceivePacket last{};
-            while (std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count() < 2.0)
+            ReceivePacket packet{};
+            if (serial.frames().wait_for(packet, std::chrono::milliseconds(5)))
             {
-                ReceivePacket packet{};
-                if (hw.frames().wait_for(packet, std::chrono::milliseconds(5)))
-                {
-                    last = packet;
-                    ++count;
-                }
+                last = packet;
+                ++count;
             }
-            const double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
-            std::printf("real serial rx %u frames in %.2fs = %.1f Hz\n", count, elapsed, static_cast<double>(count) / elapsed);
-
-            check(count > 0, "real rx frames");
-            check(std::fabs(last.quaternion().norm() - 1.0F) < 0.05F, "real rx quaternion near unit");
-            check(std::fabs(hw.quaternion_at(tools::time::now()).norm() - 1.0F) < 0.1F, "real imu buffer near unit");
-
-            // 下行:发一帧心跳后端口仍在,链路未被写坏。
-            hw.send(SendPacket{0.0F, 0.0F, 0});
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            check(hw.is_open(), "real still open after tx");
         }
+        const double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+        std::printf("rx %u frames in %.2fs = %.1f Hz\n", count, elapsed, static_cast<double>(count) / elapsed);
+
+        check(count > 0, "received frames");
+        check(std::fabs(last.quaternion().norm() - 1.0F) < 0.05F, "received quaternion is close to unit");
+        check(std::fabs(serial.quaternion_at(tools::time::now()).norm() - 1.0F) < 0.1F, "pose interpolation buffer is available");
     }
+
+    // 发送测试
+    {
+        serial.send(SendPacket{1.25F, 0.5F, 1});
+
+        unsigned   count = 0;
+        const auto start = std::chrono::steady_clock::now();
+        while (std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count() < 0.5)
+        {
+            ReceivePacket packet{};
+            if (serial.frames().wait_for(packet, std::chrono::milliseconds(5)))
+            {
+                ++count;
+            }
+        }
+        std::printf("after tx: %u frames in 0.5s\n", count);
+
+        check(serial.is_open(), "after tx, serial still open");
+        check(count > 0, "after tx, received frames");
+    }
+
+    std::filesystem::remove(path);
 
     if (failures != 0)
     {

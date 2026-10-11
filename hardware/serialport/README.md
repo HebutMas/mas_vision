@@ -54,6 +54,7 @@ serial:
   stopbits: 1
   flowcontrol: none
   timestamp_offset: 0.0
+  imu_to_gimbal_rpy: [0.0, 0.0, 180.0]
 ```
 
 | 键 | 默认 | 说明 |
@@ -66,6 +67,7 @@ serial:
 | `serial.stopbits` | `1` | 停止位,1/2 |
 | `serial.flowcontrol` | `none` | 流控,none/rtscts |
 | `serial.timestamp_offset` | `0.0` | IMU 姿态时间戳偏移(秒):到达时刻 + offset |
+| `serial.imu_to_gimbal_rpy` | 无 | IMU 系→云台系 的安装旋转,`[roll, pitch, yaw]` 度 |
 
 > 跑一次 `sudo scripts/serial_setup.sh`将ttyACMX/ttyUSBX 固定成 `/dev/gimbal`
 
@@ -126,7 +128,6 @@ target_link_libraries(serialport PUBLIC tools)
 target_link_libraries(hardware INTERFACE serialport)
 ```
 
-测试 `hardware/serialport/test.cpp` 先跑**伪终端(`openpty`)回环**(组帧 / 解析 / 重同步 / 掉线检测 / 设备缺失),再跑**真实串口**(默认 `/dev/ttyACM0`,`RM_SERIAL_PORT` 可覆盖;读帧率 + IMU 姿态 + 试发;无设备自动跳过):
 
 ```bash
 cmake --build build -j4

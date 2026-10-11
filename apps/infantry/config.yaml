@@ -7,6 +7,7 @@ serial:
   stopbits: 1 # 1/2
   flowcontrol: none # none/rtscts
   timestamp_offset: 0.0
+  imu_to_gimbal_rpy: [0.0, 0.0, 180.0] # IMU 系 -> 云台系 的安装旋转(ZYX 欧拉角,单位度)
 hikcamera:
   serial: "" # 留空则用枚举到的第一台
   exposure_us: 5000
