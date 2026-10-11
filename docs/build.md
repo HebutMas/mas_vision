@@ -195,10 +195,10 @@ ctest --test-dir build --output-on-failure
 
 ### 串口设备
 
-运行脚本,从列表里选一个设备,固定成 `/dev/gimbal` 
+运行脚本,按 **USB 描述符**绑定
 
 ```bash
-sudo scripts/serial_setup.sh
+sudo scripts/serial_setup.sh      # 安装: /dev/gimbal(PCCOMM-AIM) + /dev/nav(PCCOMM-NAV)
 ```
 
 ### 开机自启

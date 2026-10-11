@@ -67,7 +67,7 @@ serial:
 | `serial.stopbits` | `1` | 停止位,1/2 |
 | `serial.flowcontrol` | `none` | 流控,none/rtscts |
 | `serial.timestamp_offset` | `0.0` | IMU 姿态时间戳偏移(秒):到达时刻 + offset |
-| `serial.imu_to_gimbal_rpy` | 无 | IMU 系→云台系 的安装旋转,`[roll, pitch, yaw]` 度 |
+| `serial.imu_to_gimbal_rpy` | `[0.0, 0.0, 0.0]` | IMU 系→云台系 的安装旋转,`[roll, pitch, yaw]` 度 |
 
 > 跑一次 `sudo scripts/serial_setup.sh`：按 **USB 描述符**把两个 CDC-ACM 口固定成 /dev/gimbal /dev/nav
 

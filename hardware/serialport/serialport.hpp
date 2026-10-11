@@ -36,7 +36,6 @@ struct SerialConfig
 
     // IMU 系 -> 云台系 的安装旋转
     Eigen::Quaternionf    imu_to_gimbal{Eigen::Quaternionf::Identity()};
-    bool                  has_mount{false}; // 是否配置旋转参数
     std::array<double, 3> mount_rpy_deg{};  // 配置里写的 RPY(仅用于启动日志)
 };
 
