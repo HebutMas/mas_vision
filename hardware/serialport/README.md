@@ -69,7 +69,7 @@ serial:
 | `serial.timestamp_offset` | `0.0` | IMU 姿态时间戳偏移(秒):到达时刻 + offset |
 | `serial.imu_to_gimbal_rpy` | 无 | IMU 系→云台系 的安装旋转,`[roll, pitch, yaw]` 度 |
 
-> 跑一次 `sudo scripts/serial_setup.sh`将ttyACMX/ttyUSBX 固定成 `/dev/gimbal`
+> 跑一次 `sudo scripts/serial_setup.sh`：按 **USB 描述符**把两个 CDC-ACM 口固定成 /dev/gimbal /dev/nav
 
 ### main 里读取配置并注册
 

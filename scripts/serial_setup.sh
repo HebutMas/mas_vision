@@ -1,80 +1,100 @@
 #!/usr/bin/env bash
-#   sudo scripts/serial_setup.sh              # 交互式:列出设备,输入序号选择
-#   sudo scripts/serial_setup.sh /dev/ttyACM0 # 直接指定设备
+# 用 USB 描述符把下位机的两个 CDC-ACM 口固定成稳定名字
+#
+#   /dev/gimbal  <-  ATTRS{bInterfaceNumber}=="00"  ATTRS{interface}=="PCCOMM-AIM"   (自瞄)
+#   /dev/nav     <-  ATTRS{bInterfaceNumber}=="02"  ATTRS{interface}=="PCCOMM-NAV"   (导航)
+#
+#   sudo scripts/serial_setup.sh            # 安装规则(幂等)
+#   sudo scripts/serial_setup.sh --remove   # 卸载规则
+#        scripts/serial_setup.sh --print    # 只打印规则,不写系统(不需要 root)
 set -euo pipefail
 
-RULES=/etc/udev/rules.d/70-mas-serial.rules
-LINK="${LINK:-gimbal}"
+RULES="${RULES:-/etc/udev/rules.d/70-mas-serial.rules}"
+LINK_AIM="${LINK_AIM:-gimbal}"
+LINK_NAV="${LINK_NAV:-nav}"
 GROUP="${GROUP:-dialout}"
 MODE="${MODE:-0666}"
+
+# 描述符 = 接口号 + 接口名。iInterface 字符串由下位机固件给出,同一台车固定不变;
+AIM_IFNUM="${AIM_IFNUM:-00}"
+AIM_IFNAME="${AIM_IFNAME:-PCCOMM-AIM}"
+NAV_IFNUM="${NAV_IFNUM:-02}"
+NAV_IFNAME="${NAV_IFNAME:-PCCOMM-NAV}"
+
+RULE_TEXT="$(cat <<EOF
+# 电控串口:按 USB 描述符(接口号 + 接口名)绑定固定名与权限。由 scripts/serial_setup.sh 生成。
+# 自瞄:PCCOMM-AIM
+SUBSYSTEM=="tty", ATTRS{bInterfaceNumber}=="$AIM_IFNUM", ATTRS{interface}=="$AIM_IFNAME", SYMLINK+="$LINK_AIM", GROUP="$GROUP", MODE="$MODE", ENV{ID_MM_DEVICE_IGNORE}="1"
+# 导航:PCCOMM-NAV
+SUBSYSTEM=="tty", ATTRS{bInterfaceNumber}=="$NAV_IFNUM", ATTRS{interface}=="$NAV_IFNAME", SYMLINK+="$LINK_NAV", GROUP="$GROUP", MODE="$MODE", ENV{ID_MM_DEVICE_IGNORE}="1"
+EOF
+)"
+
+case "${1:-}" in
+  --print|-n)
+    echo "$RULE_TEXT"
+    exit 0
+    ;;
+  --remove|-r)
+    if [ "$(id -u)" -ne 0 ]; then
+      echo "需要 root,请用: sudo $0 --remove" >&2
+      exit 1
+    fi
+    if [ -e "$RULES" ]; then
+      rm -f "$RULES"
+      udevadm control --reload-rules
+      udevadm trigger --subsystem-match=tty
+      echo "已删除 $RULES"
+    else
+      echo "$RULES 不存在,无需删除"
+    fi
+    exit 0
+    ;;
+  --help|-h)
+    sed -n '2,13p' "$0"
+    exit 0
+    ;;
+  "")
+    ;;
+  *)
+    echo "未知参数: $1(可用 --print / --remove)" >&2
+    exit 1
+    ;;
+esac
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "需要 root,请用: sudo $0" >&2
   exit 1
 fi
 
-# 列出候选设备
-mapfile -t DEVS < <(ls /dev/ttyACM* /dev/ttyUSB* 2>/dev/null | sort)
-if [ "${#DEVS[@]}" -eq 0 ]; then
-  echo "未找到 /dev/ttyACM* 或 /dev/ttyUSB* 设备,请先插上下位机" >&2
-  exit 1
-fi
-
-# 选择
-if [ "$#" -ge 1 ]; then
-  DEV="$1"
-  [ -e "$DEV" ] || { echo "设备不存在: $DEV" >&2; exit 1; }
-elif [ "${#DEVS[@]}" -eq 1 ]; then
-  DEV="${DEVS[0]}"
-  echo "只有一个设备,自动选择: $DEV"
-else
-  echo "可用串口设备:"
-  for i in "${!DEVS[@]}"; do
-    printf '  %d) %s\n' "$((i + 1))" "${DEVS[$i]}"
-  done
-  read -rp "选择序号: " n
-  if ! [[ "$n" =~ ^[0-9]+$ ]] || [ "$n" -lt 1 ] || [ "$n" -gt "${#DEVS[@]}" ]; then
-    echo "无效序号: $n" >&2
-    exit 1
-  fi
-  DEV="${DEVS[$((n - 1))]}"
-fi
-echo "已选择: $DEV"
-
-# 取标识。优先 厂商/产品 + 序列号;没有序列号时退回 ID_PATH(认物理口,必须插同一个口)。
-prop() { udevadm info -q property -n "$DEV" 2>/dev/null | sed -n "s/^$1=//p"; }
-VID="$(prop ID_VENDOR_ID)"
-PID="$(prop ID_MODEL_ID)"
-SER="$(prop ID_SERIAL_SHORT)"
-IDPATH="$(prop ID_PATH)"
-
-if [ -n "$SER" ]; then
-  MATCH="ATTRS{idVendor}==\"$VID\", ATTRS{idProduct}==\"$PID\", ATTRS{serial}==\"$SER\""
-  echo "匹配方式: 厂商 $VID:$PID + 序列号 $SER"
-elif [ -n "$IDPATH" ]; then
-  MATCH="ENV{ID_PATH}==\"$IDPATH\""
-  echo "匹配方式: ID_PATH $IDPATH(设备无序列号,需插回同一个 USB 口)"
-else
-  echo "无法获取 $DEV 的标识(idVendor/serial/ID_PATH 都为空)" >&2
-  exit 1
-fi
-
-# 写规则并生效
-cat > "$RULES" <<EOF
-# 电控串口:固定名 /dev/$LINK + 权限。由 scripts/serial_setup.sh 生成。
-SUBSYSTEM=="tty", $MATCH, SYMLINK+="$LINK", GROUP="$GROUP", MODE="$MODE"
-EOF
-echo "已写入 $RULES"
+printf '%s\n' "$RULE_TEXT" > "$RULES"
+echo "已写入 $RULES:"
+sed 's/^/  /' "$RULES"
 
 udevadm control --reload-rules
 udevadm trigger --subsystem-match=tty
 
-# 等软链出现
-for _ in $(seq 1 20); do [ -e "/dev/$LINK" ] && break; sleep 0.1; done
+# 等软链出现(设备没插时不会出现,不影响规则本身)
+for _ in $(seq 1 20); do
+  [ -e "/dev/$LINK_AIM" ] && [ -e "/dev/$LINK_NAV" ] && break
+  sleep 0.1
+done
 
-if [ -e "/dev/$LINK" ]; then
-  ls -l "/dev/$LINK"
-  echo "把 config.yaml 的 serial.port 设为 /dev/$LINK 即可"
-else
-  echo "软链 /dev/$LINK 未出现:重插一次设备,或 udevadm trigger --subsystem-match=tty" >&2
+echo
+for link in "$LINK_AIM" "$LINK_NAV"; do
+  if [ -e "/dev/$link" ]; then
+    printf '/dev/%-8s -> %s\n' "$link" "$(readlink -f "/dev/$link")"
+  else
+    printf '/dev/%-8s 未出现(设备未插?插好后 udevadm trigger --subsystem-match=tty)\n' "$link"
+  fi
+done
+
+# 打印实际命中的描述符,方便确认绑的就是想要的那个口
+if [ -e "/dev/$LINK_AIM" ]; then
+  echo
+  echo "命中的描述符:"
+  udevadm info -a -n "/dev/$LINK_AIM" 2>/dev/null | grep -m2 -E 'bInterfaceNumber|interface=' | sed 's/^/  /' || true
 fi
+
+echo
+echo "把 config.yaml 的 serial.port 设为 /dev/$LINK_AIM 即可"
