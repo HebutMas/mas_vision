@@ -1,8 +1,9 @@
 #pragma once
 
 #include "hardware/serialport/serialtypes.hpp"
-#include "modules/auto_armor/detection/detector.hpp"
+#include "modules/auto_armor/auto_armor.hpp"
 #include "modules/auto_buff/detection/detector.hpp"
+#include "tools/config/config.hpp"
 #include "tools/debug/debug.hpp"
 #include "tools/time/time.hpp"
 
@@ -25,7 +26,7 @@ class Debug
 {
   public:
     // application_id 用于在 Viewer 里区分不同程序,建议用 "rm_vision.<兵种>"。
-    explicit Debug(const std::string &application_id);
+    Debug(const std::string &application_id, const tools::config::Config &config);
     ~Debug();
 
     Debug(const Debug &)            = delete;
@@ -36,7 +37,7 @@ class Debug
 
     // 推入一帧识别结果(含当前云台串口数据与本次推理耗时 ms)。
     void push(const cv::Mat &image, std::int64_t frame, tools::time::TimePoint timestamp, const hardware::serialport::ReceivePacket &serial,
-              rm::armor::Detector::Result detection, double latency_ms);
+              rm::armor::AutoAimResult result, double latency_ms);
     void push(const cv::Mat &image, std::int64_t frame, tools::time::TimePoint timestamp, const hardware::serialport::ReceivePacket &serial,
               rm::buff::Detector::Result detection, double latency_ms);
 
@@ -51,13 +52,14 @@ class Debug
         std::int64_t                        frame{};
         tools::time::TimePoint              timestamp;
         hardware::serialport::ReceivePacket serial;
-        rm::armor::Detector::Result         detection;
+        rm::armor::AutoAimResult            armor_result;
         double                              latency_ms{};
         rm::buff::Detector::Result          rune_detection;
     };
 
     tools::LatestFrame<DebugFrame> debug_in_;
     std::thread                    debug_thread_;
+    rm::armor::SolverConfig        solver_config_;
 #endif
 };
 

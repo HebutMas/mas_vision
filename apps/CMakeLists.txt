@@ -1,4 +1,4 @@
-set(KNOWN_APPS infantry hero sentry dart calibration)
+set(KNOWN_APPS infantry video hero sentry dart calibration)
 
 foreach(app ${APPS})
   if(NOT app IN_LIST KNOWN_APPS)
@@ -6,10 +6,13 @@ foreach(app ${APPS})
   endif()
 
   add_executable(${app} ${app}/main.cpp)
+  # 调试模块:app 自己的 main_debug.cpp;没有则复用 infantry 的实现。
   if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${app}/main_debug.cpp)
     target_sources(${app} PRIVATE ${app}/main_debug.cpp)
+  elseif(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/infantry/main_debug.cpp)
+    target_sources(${app} PRIVATE infantry/main_debug.cpp)
   endif()
-  target_link_libraries(${app} PRIVATE tools hardware auto_armor_detection auto_buff_detection ${OpenCV_LIBS})
+  target_link_libraries(${app} PRIVATE tools hardware auto_armor auto_buff ${OpenCV_LIBS})
   # 配置默认走绝对路径,这样从任意目录运行都能找到 apps/<app>/config.yaml。
   target_compile_definitions(${app} PRIVATE RM_CONFIG_PATH="${CMAKE_SOURCE_DIR}/apps/${app}/config.yaml")
   # 配置里的相对路径(如标定输出)按仓库根解析,不依赖启动时的工作目录。

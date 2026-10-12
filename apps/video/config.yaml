@@ -1,0 +1,109 @@
+video:
+  path: "/home/pan/workspace/visionproject/test.avi" # 非空则循环回放该视频(替代相机),帧走同一套识别流程;无硬件开发调试用
+serial:
+  debug: false # 打印接收的 16 进制原始数据
+  port: /dev/gimbal
+  baudrate: 115200
+  bytesize: 8 # 5/6/7/8
+  parity: none # none/even/odd
+  stopbits: 1 # 1/2
+  flowcontrol: none # none/rtscts
+  timestamp_offset: 0.0
+  imu_to_gimbal_rpy: [0.0, 0.0, 180.0] # IMU 系 -> 云台系 的安装旋转(ZYX 欧拉角,单位度)
+hikcamera:
+  serial: "" # 留空则用枚举到的第一台
+  exposure_us: 5000
+  gain_db: 10
+  framerate: 0 # <=0:跑相机最大帧率
+  demosaic: edge_aware # bilinear/edge_aware
+  roi:
+    enable: false
+    x: 0
+    y: 0
+    width: 0 # <=0:整幅
+    height: 0 # <=0:整幅
+  #相机内参
+  camera_matrix: [1818.3669452465165, 0, 751.06226574703498, 0, 1822.494494078506, 530.43671556112133, 0, 0, 1]
+  distort_coeffs: [-0.077944626599568856, 0.15447826031486889, -0.0025714394278524674, 0.00083016311301273629, 0]
+  translation: [0.0, 0.0, 0.0] # 云台旋转中心到相机光心平移距离,云台系(米)，在sw上测
+usbcamera:
+  device_path: /dev/video0
+  width: 1280
+  height: 720
+  fps: 30
+  fourcc: MJPG # MJPG/YUYV
+  auto_exposure_enable: 0 # 1=自动,0=手动
+  exposure: 50 # 仅手动模式
+  gain: 20 # 仅手动模式
+  auto_wb: 1 # 0=禁用,1=启用
+# 自瞄
+auto_aim:
+  detector:
+    model: modules/auto_armor/models/shenzhen-0526.onnx # 相对仓库根目录
+    device: CPU
+    input: [640, 640]
+    min_confidence: 0.5
+    score_threshold: 0.7
+    nms_threshold: 0.3
+    roi: {enable: false, x: 420, y: 50, width: 600, height: 600}
+    enemy_color: "" # 颜色判断，空代表都识别
+    # 灯条优化参数
+    light:
+      refine_min_width_px: 3.0 # 最小灯条宽度
+      refine_start_ratio: 0.4 # 从质心沿对称轴 0.4L 处开始搜
+      refine_end_ratio: 0.6 # 搜到 0.6L(窗口 = 0.2L)
+
+  track:
+    tracker: # 状态机/关联/健康监控(§10)
+      min_detect_count: 5
+      max_temp_lost_count: 25
+      outpost_max_temp_lost_count: 75
+      switch_confirm_count: 3
+      max_match_mahalanobis2: 50.0
+      nis_reset_ratio: 0.4
+      jump_yaw_diff: 0.4
+      dt_max: 0.1
+    ekf: # 整车 11 维 EKF 噪声(§10)
+      v1: 100.0
+      v2: 400.0
+      slow: {w_thres: 2.0, v1: 10.0, v2: 0.5}
+      fast: {w_thres: 8.0, v1: 100.0, v2: 1000.0}
+      q_rlh: 1.0e-4
+      r_yaw: 4.0e-3
+      r_pitch: 4.0e-3
+      r_dist: 9.0e-2
+      r_armor_yaw: 9.0e-2
+      default_radius: 0.26
+      outpost_radius: 0.2765
+      base_radius: 0.3205
+      outpost_v2: 0.1
+      outpost_w_clamp: 2.51
+      p0: [1.0, 64.0, 1.0, 64.0, 1.0, 64.0, 0.4, 10.0, 0.04, 0.04, 0.04]
+      
+  shoot: {}
+
+# 打符
+auto_buff:
+  detector:
+    model: modules/auto_buff/models/shenzhenbuff-0624.onnx # 相对仓库根目录
+    device: CPU
+    confidence_threshold: 0.8 # 类别置信度阈值
+    keypoint_confidence_threshold: 0.8 # 单关键点置信度阈值
+    nms_distance_threshold: 30.0 # 中心距 NMS 阈值(像素)
+    min_valid_keypoints: 3 # 有效关键点少于此数则丢弃
+    refine: # 识别后精修(深大 RP-26Rune 精简版)
+      red_minus_blue_threshold: 60 # 红方颜色差分(R-B)二值化阈值
+      blue_minus_red_threshold: 62 # 蓝方颜色差分(B-R)二值化阈值
+      armor_module_area_relative_error_threshold: 0.35 # 装甲板轮廓面积相对网络框面积的允许误差
+      light_arm_line_samples: 30 # 灯臂连线是否穿轮廓的采样点数
+      solidity_threshold_ellipse: 0.8 # 装甲板(椭圆)轮廓最小 solidity
+      solidity_threshold_rectangular: 0.66 # 未激活灯臂(矩形)轮廓最小 solidity
+      expect_aspect_ratio: 5.0 # 未激活灯臂期望长宽比
+      aspect_ratio_relative_error_threshold: 0.42 # 长宽比允许相对误差
+      approx_error_tolerance: 0.01 # 已激活灯臂多边形近似相对容差
+      roi_margin_ratio: 0.15 # ROI 相对五点外接框的外扩比例
+      border_margin: 2.0 # 贴边判定的边界距离(像素)
+
+  track: {}
+
+  shoot: {}

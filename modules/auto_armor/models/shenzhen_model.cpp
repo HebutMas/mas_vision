@@ -59,7 +59,7 @@ std::optional<Armor2d> decode_shenzhen(const ShenZhenResult &raw, float min_conf
         raw.genre.base_small,
         raw.genre.base_large,
     };
-    constexpr Kind KINDS[10]{Kind::small,     Kind::hero,   Kind::engineer, Kind::infantry1, Kind::infantry2,
+    constexpr Kind KINDS[10]{Kind::hero,      Kind::hero,   Kind::engineer, Kind::infantry1, Kind::infantry2,
                              Kind::infantry3, Kind::sentry, Kind::outpost,  Kind::base,      Kind::base};
 
     const std::size_t genre = argmax(genres);

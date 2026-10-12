@@ -1,12 +1,36 @@
-# debug 是编译期可选件:只有 RM_DEBUG=ON 时才链接 Rerun SDK 并构建其测试。
-add_library(tools INTERFACE)
-target_include_directories(tools INTERFACE ${PROJECT_SOURCE_DIR})
+set(RM_TOOLS_SOURCES
+  algorithm/math_tools.cpp
+  algorithm/extended_kalman_filter.cpp
+  calibration/calibration.cpp
+  debug/record/player.cpp)
+
+if(RM_DEBUG)
+  list(APPEND RM_TOOLS_SOURCES
+    debug/video/video_encoder.cpp
+    debug/record/record.cpp)
+endif()
+
+add_library(tools STATIC ${RM_TOOLS_SOURCES})
+target_include_directories(tools PUBLIC ${PROJECT_SOURCE_DIR})
 
 # 配置解析:YAML 由 yaml-cpp 提供
-target_link_libraries(tools INTERFACE ${RM_YAML_CPP_TARGET})
+target_link_libraries(tools PUBLIC ${RM_YAML_CPP_TARGET})
 
 # 链接Eigen。
-target_link_libraries(tools INTERFACE Eigen3::Eigen)
+target_link_libraries(tools PUBLIC Eigen3::Eigen)
+
+# 链接OpenCV。
+target_link_libraries(tools PUBLIC ${OpenCV_LIBS})
+
+if(RM_DEBUG)
+  target_compile_definitions(tools PUBLIC RM_DEBUG)
+  target_link_libraries(tools PUBLIC rerun_sdk)
+
+  # 视频调试/录制:VAAPI 编码走 libavcodec/libva。
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(RM_FFMPEG REQUIRED IMPORTED_TARGET libavcodec libavutil libva)
+  target_link_libraries(tools PUBLIC PkgConfig::RM_FFMPEG)
+endif()
 
 add_executable(config_test config/test.cpp)
 target_link_libraries(config_test PRIVATE tools)
@@ -25,7 +49,7 @@ target_link_libraries(latest_frame_test PRIVATE tools)
 
 add_test(NAME latest_frame COMMAND latest_frame_test)
 
-# 算法:CRC16 测试向量 + 四元数插值缓冲(需 Eigen)。
+# 算法:CRC16 测试向量 + 四元数插值缓冲 + math_tools + EKF。
 add_executable(algorithm_test algorithm/test.cpp)
 target_link_libraries(algorithm_test PRIVATE tools)
 
@@ -37,28 +61,10 @@ target_link_libraries(exiter_test PRIVATE tools)
 
 add_test(NAME exiter COMMAND exiter_test)
 
-# 相机标定:棋盘格内参(不依赖 Rerun,始终构建)。
-add_library(rm_calibration STATIC calibration/calibration.cpp)
-target_include_directories(rm_calibration PUBLIC ${PROJECT_SOURCE_DIR})
-target_link_libraries(rm_calibration PUBLIC ${OpenCV_LIBS})
-target_link_libraries(tools INTERFACE rm_calibration)
-
 if(RM_DEBUG)
-  target_compile_definitions(tools INTERFACE RM_DEBUG)
-  target_link_libraries(tools INTERFACE rerun_sdk)
-
-  # 视频调试
-  find_package(PkgConfig REQUIRED)
-  pkg_check_modules(RM_FFMPEG REQUIRED IMPORTED_TARGET libavcodec libavutil libva)
-
-  add_library(rm_debug STATIC debug/video/video_encoder.cpp)
-  target_include_directories(rm_debug PUBLIC ${PROJECT_SOURCE_DIR})
-  target_link_libraries(rm_debug PUBLIC PkgConfig::RM_FFMPEG ${OpenCV_LIBS})
-  target_link_libraries(tools INTERFACE rm_debug)
-
   # 远程调试链路的测试:Viewer 在线/离线都必须通过,由 ctest 运行。
   add_executable(debug_test debug/test.cpp)
-  target_link_libraries(debug_test PRIVATE tools ${OpenCV_LIBS})
+  target_link_libraries(debug_test PRIVATE tools)
 
   add_test(NAME debug_sink COMMAND debug_test)
   # 极端情况下(9876 上挂着一个不响应 gRPC 的监听)底层客户端可能卡在退出阶段,给测试设个上限,避免 ctest 永久挂住。
@@ -66,18 +72,13 @@ if(RM_DEBUG)
 
   # 编码器自检
   add_executable(video_test debug/video/test.cpp)
-  target_link_libraries(video_test PRIVATE tools ${OpenCV_LIBS})
+  target_link_libraries(video_test PRIVATE tools)
   add_test(NAME video COMMAND video_test)
   set_tests_properties(video PROPERTIES TIMEOUT 60)
 
   # 录制
-  add_library(rm_record STATIC debug/record/record.cpp)
-  target_include_directories(rm_record PUBLIC ${PROJECT_SOURCE_DIR})
-  target_link_libraries(rm_record PUBLIC rm_debug ${OpenCV_LIBS})
-  target_link_libraries(tools INTERFACE rm_record)
-
   add_executable(record_test debug/record/test.cpp)
-  target_link_libraries(record_test PRIVATE tools ${OpenCV_LIBS})
+  target_link_libraries(record_test PRIVATE tools)
   add_test(NAME record COMMAND record_test)
   set_tests_properties(record PROPERTIES TIMEOUT 60)
 endif()

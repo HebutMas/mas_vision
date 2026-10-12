@@ -1,8 +1,8 @@
-# record 录像
+# record 录像与回放
 
 把相机帧编码成 H.264 落盘,并在**同名 CSV** 里逐帧记录时间戳与附带数据(如串口姿态),用于离线复盘 / 与其它日志对齐。
 
-复用 [`video_encoder.hpp`](../video/video_encoder.hpp)
+录制复用 [`video_encoder.hpp`](../video/video_encoder.hpp);回放(`Player`)把视频文件当成帧源,替代相机。
 
 ## 输出
 
@@ -56,6 +56,57 @@ class Recorder {
 - `start()` 会检查:目录可用性、剩余空间、目录内已有录像总量。
 - 超过 `max_duration` 时下一次 `push()` 自动停止并保存。
 - 析构时若仍在录制,会自动 `stop(true)` 收尾。
+
+## 回放 Player
+
+`Player` 把视频文件当成帧源,接口刻意模仿相机:每次 `read()` 取一帧(含实时限速),读到末尾自动回到开头循环。
+
+```cpp
+namespace tools::record {
+
+struct PlayerConfig {
+    std::string path;           // 视频文件路径
+    double      fps{0.0};       // 播放帧率;<=0 用视频自带帧率(取不到按 30)
+    bool        realtime{true}; // 按帧率实时出帧;false 则尽全力跑
+};
+
+class Player {
+  public:
+    explicit Player(PlayerConfig config);
+    [[nodiscard]] bool is_open() const;
+    // 取下一帧(含实时限速);到末尾自动循环。打不开 / 重开失败返回 false。
+    bool read(cv::Mat &image, tools::time::TimePoint &timestamp);
+};
+
+} // namespace tools::record
+```
+
+- 时间戳取实际出流时刻(`tools::time::Clock::now()`),语义与相机一致,跨循环可直接相减。
+- 循环靠重开文件实现(不依赖 seek),并重置本轮播放节奏。
+- 日志:`video loop restart: <path>`。
+
+接入 app(替代 hikcamera):
+
+```cpp
+tools::record::PlayerConfig player_config;
+player_config.path = config.value<std::string>("video.path", "");
+std::unique_ptr<tools::record::Player> player;
+if (!player_config.path.empty()) {
+    player = std::make_unique<tools::record::Player>(player_config);
+}
+
+// 主循环:
+cv::Mat image;
+tools::time::TimePoint timestamp;
+if (player->read(image, timestamp)) { /* 走同一套识别流程 */ }
+```
+
+对应的 `apps/infantry/config.yaml`:
+
+```yaml
+video:
+  path: "" # 非空则循环回放该视频(替代相机)
+```
 
 ## 日志
 

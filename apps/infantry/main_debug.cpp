@@ -53,10 +53,11 @@ void log_serial(tools::debug::Sink &sink, const hardware::serialport::ReceivePac
 #endif
 } // namespace
 
-Debug::Debug(const std::string &application_id) : sink_(application_id)
+Debug::Debug(const std::string &application_id, const tools::config::Config &config) : sink_(application_id)
 {
 #ifdef RM_DEBUG
-    debug_thread_ = std::thread([this] {
+    solver_config_ = rm::armor::load_solver_config(config);
+    debug_thread_  = std::thread([this] {
         std::unique_ptr<tools::video::VideoEncoder> encoder;
         DebugFrame                                  f;
         // 阻塞等待最新帧;只有 Debug 析构 close() 时才返回 false 退出。
@@ -70,7 +71,7 @@ Debug::Debug(const std::string &application_id) : sink_(application_id)
             sink_.set_frame(f.frame);
             sink_.set_time("time", timestamp);
             log_serial(sink_, f.serial);
-            rm::armor::draw(f.image, f.detection);
+            rm::armor::draw(f.image, f.armor_result.target, solver_config_);
             rm::buff::draw(f.image, f.rune_detection);
             draw_latency(f.image, f.latency_ms);
             try
@@ -97,6 +98,8 @@ Debug::Debug(const std::string &application_id) : sink_(application_id)
             }
         }
     });
+#else
+    (void)config;
 #endif
 }
 
@@ -113,24 +116,26 @@ Debug::~Debug()
 
 bool Debug::active() const { return sink_.active(); }
 
+// NOLINTBEGIN(performance-unnecessary-value-param): 按值接收,随后 move 进 debug 队列(RM_DEBUG 关闭时参数用不到,故 tidy 会误报)。
 void Debug::push(const cv::Mat &image, std::int64_t frame, tools::time::TimePoint timestamp, const hardware::serialport::ReceivePacket &serial,
-                 rm::armor::Detector::Result detection, double latency_ms)
+                 rm::armor::AutoAimResult result, double latency_ms)
 {
 #ifdef RM_DEBUG
     if (sink_.active())
     {
-        debug_in_.push(DebugFrame{image, frame, timestamp, serial, std::move(detection), latency_ms, {}});
+        debug_in_.push(DebugFrame{image, frame, timestamp, serial, std::move(result), latency_ms, {}});
     }
 #else
     (void)image;
     (void)frame;
     (void)timestamp;
     (void)serial;
-    (void)detection;
+    (void)result;
     (void)latency_ms;
 #endif
 }
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
 void Debug::push(const cv::Mat &image, std::int64_t frame, tools::time::TimePoint timestamp, const hardware::serialport::ReceivePacket &serial,
                  rm::buff::Detector::Result detection, double latency_ms)
 {
@@ -148,5 +153,6 @@ void Debug::push(const cv::Mat &image, std::int64_t frame, tools::time::TimePoin
     (void)latency_ms;
 #endif
 }
+// NOLINTEND(performance-unnecessary-value-param)
 
 } // namespace infantry

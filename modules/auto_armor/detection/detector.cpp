@@ -132,15 +132,21 @@ struct Detector::Impl
             return result;
         }
 
-        auto input_tensor = ov::Tensor(ov::element::u8, ov::Shape{1, static_cast<std::size_t>(rows), static_cast<std::size_t>(cols), 3});
+        // 复用 input tensor 与 infer request
+        // letterbox 只写左上 scaled_w x scaled_h,右下 padding 区保持初次的零值,因此仅当
+        // 填充几何变化时才重新分配并清零
+        if (input_mat.empty() || scaled_w != cached_w || scaled_h != cached_h)
         {
-            cv::Mat input_mat(rows, cols, CV_8UC3, input_tensor.data());
+            input_tensor = ov::Tensor(ov::element::u8, ov::Shape{1, static_cast<std::size_t>(rows), static_cast<std::size_t>(cols), 3});
+            input_mat    = cv::Mat(rows, cols, CV_8UC3, input_tensor.data());
             input_mat.setTo(cv::Scalar::all(0));
-            cv::resize(segmentation, input_mat(cv::Rect(0, 0, scaled_w, scaled_h)), {scaled_w, scaled_h});
+            request = model.create_infer_request();
+            request.set_input_tensor(input_tensor);
+            cached_w = scaled_w;
+            cached_h = scaled_h;
         }
+        cv::resize(segmentation, input_mat(cv::Rect(0, 0, scaled_w, scaled_h)), {scaled_w, scaled_h});
 
-        auto request = model.create_infer_request();
-        request.set_input_tensor(input_tensor);
         request.infer();
 
         const auto  output = request.get_output_tensor();
@@ -210,6 +216,13 @@ struct Detector::Impl
     const ModelSpec  *spec_{};
     ov::Core          core;
     ov::CompiledModel model;
+
+    // 跨帧复用,避免每帧重新分配
+    ov::InferRequest request;
+    ov::Tensor       input_tensor;
+    cv::Mat          input_mat;
+    int              cached_w{0};
+    int              cached_h{0};
 };
 
 Detector::Detector(const DetectorConfig &config) : impl_(std::make_unique<Impl>(config)) {}

@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include <Eigen/Core>
 #include <opencv2/core/types.hpp>
 
 namespace rm::armor
@@ -22,19 +23,17 @@ enum class Color : std::uint8_t
     purple,
 };
 
-// 装甲板类别。small / large 是通用大小板,其余是具体兵种。
+// 装甲板类别(兵种)。只有 hero 用大板几何,其余兵种都是小板。
 enum class Kind : std::uint8_t
 {
-    small,
-    large,
-    outpost,
-    base,
-    sentry,
     hero,
     engineer,
     infantry1,
     infantry2,
     infantry3,
+    sentry,
+    outpost,
+    base,
 };
 
 // 2D 装甲板,corners 顺序固定为 tl, tr, br, bl(像素坐标)。
@@ -42,15 +41,26 @@ struct Armor2d
 {
     std::array<cv::Point2f, 4> corners;
     cv::Point2f                center;
-    Kind                       kind{Kind::small};
+    Kind                       kind{Kind::infantry1};
     Color                      color{Color::blue};
     float                      confidence{0.0F};
+};
+
+// 3D 装甲板观测:solver(PnP)输出,云台(odom)系(x 前、y 左、z 上)
+struct Armor3d
+{
+    Kind            kind{Kind::infantry1};        // 名称类别，关联依据
+    Color           color{Color::blue};           // 颜色
+    Eigen::Vector3d xyz{Eigen::Vector3d::Zero()}; // 云台系,米
+    double          yaw{0.0};                     // 装甲板朝向(法线方位角),yaw-only 平面假设
+    double          obs_std{0.0};                 // 观测不确定度(越远越大),预留
+    float           confidence{0.0F};             // 检测置信度(只用于可视化)
 };
 
 // 2D 灯条。
 struct Lightbar2d
 {
-    Kind        kind{Kind::small};
+    Kind        kind{Kind::infantry1};
     Color       color{Color::blue};
     cv::Point2f upper;
     cv::Point2f lower;
@@ -77,10 +87,6 @@ inline void filter_by_color(std::vector<Armor2d> &armors, Color color)
 {
     switch (kind)
     {
-    case Kind::small:
-        return "small";
-    case Kind::large:
-        return "large";
     case Kind::outpost:
         return "outpost";
     case Kind::base:

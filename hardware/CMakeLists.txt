@@ -1,5 +1,3 @@
-add_library(hardware INTERFACE)
-
 # 海康相机驱动依赖厂商 MVS SDK。先按 docs/build.md 安装,默认 /opt/MVS;
 # 装在别处用 -DMVCAM_SDK_PATH=<SDK 根目录> 指定(优先级最高,其次同名环境变量)。
 if(DEFINED ENV{MVCAM_SDK_PATH} AND NOT DEFINED MVCAM_SDK_PATH)
@@ -25,14 +23,16 @@ if(NOT MVS_INCLUDE_DIR OR NOT MVS_LIBRARIES)
                       "或用 -DMVCAM_SDK_PATH=<SDK 根目录> 指定")
 endif()
 
-add_library(hikcamera STATIC hikcamera/hikcamera.cpp)
-target_include_directories(hikcamera PUBLIC ${MVS_INCLUDE_DIR})
-target_link_libraries(hikcamera PUBLIC ${OpenCV_LIBS} ${MVS_LIBRARIES} tools)
-target_link_libraries(hardware INTERFACE hikcamera)
+add_library(hardware STATIC
+  hikcamera/hikcamera.cpp
+  usbcamera/usbcamera.cpp
+  serialport/serialport.cpp)
+target_include_directories(hardware PUBLIC ${MVS_INCLUDE_DIR})
+target_link_libraries(hardware PUBLIC tools ${OpenCV_LIBS} ${MVS_LIBRARIES})
 # SDK 动态库不在系统默认搜索路径时,给可执行文件写死 rpath 保证运行时找到。
-target_link_options(hikcamera PUBLIC "-Wl,-rpath,${MVS_LIBRARY_DIRS}")
+target_link_options(hardware PUBLIC "-Wl,-rpath,${MVS_LIBRARY_DIRS}")
 
-# 测试 + 基准自检:无相机时失败,有相机时抓一帧;RM_DEBUG 下顺带把画面送 Rerun;
+# 海康相机测试:无相机时失败,有相机时抓一帧;RM_DEBUG 下顺带把画面送 Rerun;
 # 最后测 Bayer->BGR 转换耗时与实机采集帧率(无相机时跳过采集部分)。
 add_executable(hikcamera_test hikcamera/test.cpp)
 target_link_libraries(hikcamera_test PRIVATE hardware tools)
@@ -41,27 +41,16 @@ add_test(NAME hikcamera COMMAND hikcamera_test)
 # 无相机 / 无 Viewer 时测试直接结束;RM_DEBUG 且 Viewer 在线时会连续发送 5s
 set_tests_properties(hikcamera PROPERTIES TIMEOUT 60)
 
-# USB(UVC)相机驱动:走 OpenCV 的 V4L2 后端
-add_library(usbcamera STATIC usbcamera/usbcamera.cpp)
-target_link_libraries(usbcamera PUBLIC ${OpenCV_LIBS} tools)
-target_link_libraries(hardware INTERFACE usbcamera)
-
-# 测试:无相机时失败,有相机时抓一帧;RM_DEBUG 下顺带把画面送 Rerun。
+# USB(UVC)相机测试:无相机时失败,有相机时抓一帧;RM_DEBUG 下顺带把画面送 Rerun。
 add_executable(usbcamera_test usbcamera/test.cpp)
 target_link_libraries(usbcamera_test PRIVATE hardware tools)
 
 add_test(NAME usbcamera COMMAND usbcamera_test)
 set_tests_properties(usbcamera PROPERTIES TIMEOUT 60)
 
-# 串口通信:定长帧 + CRC16,协议与收发结构体都在本模块(serialtypes.hpp);
-# 引擎与具体协议实现编译进 libserialport.a。
-add_library(serialport STATIC serialport/serialport.cpp)
-target_link_libraries(serialport PUBLIC tools)
-target_link_libraries(hardware INTERFACE serialport)
-
-# 测试
+# 串口测试:定长帧 + CRC16,协议与收发结构体都在本模块(serialtypes.hpp)。
 add_executable(serialport_test serialport/test.cpp)
-target_link_libraries(serialport_test PRIVATE hardware tools util)
+target_link_libraries(serialport_test PRIVATE hardware tools)
 
 add_test(NAME serialport COMMAND serialport_test)
 set_tests_properties(serialport PROPERTIES TIMEOUT 30)

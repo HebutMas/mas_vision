@@ -128,17 +128,10 @@ struct VideoEncoder::Impl
     // 把 BGR 转成 NV12 写入 sw_frame。
     void convert(const cv::Mat &bgr)
     {
-        // 在这段转换里把 OpenCV 限为单线程
-        const int saved_threads = cv::getNumThreads();
-        if (saved_threads != 1)
-        {
-            cv::setNumThreads(1);
-        }
+        // 注意:不要在这里动 cv::setNumThreads()。它是全局设置,而本函数运行在 debug 线程,
+        // 主线程同时可能在跑 detector 的 cv::resize(内部 parallel_for_) —— 跨线程改写
+        // OpenCV/TBB 的共享任务域会把 TBB 调度器状态搅坏,表现为 cv::resize 里段错误。
         cv::cvtColor(bgr, i420, cv::COLOR_BGR2YUV_I420);
-        if (saved_threads != 1)
-        {
-            cv::setNumThreads(saved_threads);
-        }
 
         const int width  = config.width;
         const int height = config.height;

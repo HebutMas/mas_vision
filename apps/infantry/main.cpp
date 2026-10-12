@@ -5,6 +5,9 @@
 #include "modules/auto_buff/auto_buff.hpp"
 #include "tools/config/config.hpp"
 #include "tools/exiter/exiter.hpp"
+#include "tools/time/time.hpp"
+
+#include <Eigen/Geometry>
 
 #include <chrono>
 #include <cstdint>
@@ -25,7 +28,7 @@ try
     const tools::config::Config config(path);
 
     // 远程调试
-    infantry::Debug debug("rm_vision.infantry");
+    infantry::Debug debug("rm_vision.infantry", config);
     tools::install_exit_handler();
     std::int64_t frame = 0;
 
@@ -58,7 +61,7 @@ try
             continue;
         }
 
-        // 识别:按串口下发的 mode 在自瞄/能量机关之间切换
+        // 识别按串口下发的 mode 在自瞄/能量机关之间切换
         const bool rune_mode    = hardware::serialport::is_rune_mode(state.mode);
         const bool red_mode     = hardware::serialport::is_red_mode(state.mode);
         const auto detect_begin = std::chrono::steady_clock::now();
@@ -74,10 +77,13 @@ try
         else
         {
             const std::optional<rm::armor::Color> enemy_color = red_mode ? rm::armor::Color::red : rm::armor::Color::blue;
-            auto         result    = auto_aim.process(hik_frame.image, enemy_color);
-            const double detect_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - detect_begin).count();
+            const double                          stamp       = std::chrono::duration<double>(hik_frame.timestamp - tools::time::base()).count();
+            // 串口四元数为云台在世界系下的姿态,用它把观测旋到世界系跟踪。
+            const Eigen::Matrix3d r_gimbal2world = state.quaternion().normalized().toRotationMatrix().cast<double>();
+            auto                  result         = auto_aim.process(hik_frame.image, stamp, enemy_color, r_gimbal2world);
+            const double          detect_ms      = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - detect_begin).count();
 
-            debug.push(hik_frame.image, frame++, hik_frame.timestamp, state, std::move(result.detection), detect_ms);
+            debug.push(hik_frame.image, frame++, hik_frame.timestamp, state, std::move(result), detect_ms);
         }
     }
 

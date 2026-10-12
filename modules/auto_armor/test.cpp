@@ -47,7 +47,6 @@ void check(bool ok, const std::string &what)
 cv::Mat annotate(const cv::Mat &image, const rm::armor::Detector::Result &result, double latency_ms)
 {
     cv::Mat vis = image.clone();
-    rm::armor::draw(vis, result);
 
     const double     scale     = std::max(0.8, image.rows / 720.0);
     const int        thickness = std::max(1, image.rows / 540);
@@ -56,7 +55,7 @@ cv::Mat annotate(const cv::Mat &image, const rm::armor::Detector::Result &result
 
     const std::array<std::string, 2> lines{
         cv::format("armor %d | lightbar %d | %.2f ms", static_cast<int>(result.armors.size()), static_cast<int>(result.lightbars.size()), latency_ms),
-        "box yellow | corners green ",
+        "raw image (no overlay)",
     };
     const std::array<double, 2> font_scales{0.8 * scale, 0.4 * scale};
 
@@ -106,7 +105,7 @@ void test_image(const std::string &path)
     check(!result.lightbars.empty(), "detect finds lightbar(s) on " + path);
     check(detector.detect(cv::Mat{}).armors.empty(), "empty frame tolerated");
 
-    // ── 角点 / 灯条一致性 
+    // ── 角点 / 灯条一致性
     check(result.lightbars.size() == result.armors.size() * 2, "灯条数 = 2 x 装甲板数");
     for (std::size_t index = 0; index < result.armors.size(); ++index)
     {

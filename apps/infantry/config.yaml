@@ -21,8 +21,8 @@ hikcamera:
     width: 0 # <=0:整幅
     height: 0 # <=0:整幅
   #相机内参
-  camera_matrix: [1722.231837421459, 0.0, 701.3056440882832, 0.0, 1724.876404292754, 564.5821718351237, 0.0, 0.0, 1.0]
-  distort_coeff: [-0.064232403853946, -0.087667493884102, 0.0, 0.0, 0.792381808294582]
+  camera_matrix: [1818.3669452465165, 0, 751.06226574703498, 0, 1822.494494078506, 530.43671556112133, 0, 0, 1]
+  distort_coeffs: [-0.077944626599568856, 0.15447826031486889, -0.0025714394278524674, 0.00083016311301273629, 0]
   translation: [0.0, 0.0, 0.0] # 云台旋转中心到相机光心平移距离,云台系(米)，在sw上测
 usbcamera:
   device_path: /dev/video0
@@ -51,7 +51,32 @@ auto_aim:
       refine_start_ratio: 0.4 # 从质心沿对称轴 0.4L 处开始搜
       refine_end_ratio: 0.6 # 搜到 0.6L(窗口 = 0.2L)
 
-  track: {}
+  track:
+    tracker: # 状态机/关联/健康监控(§10)
+      min_detect_count: 5
+      max_temp_lost_count: 25
+      outpost_max_temp_lost_count: 75
+      switch_confirm_count: 3
+      max_match_mahalanobis2: 50.0
+      nis_reset_ratio: 0.4
+      jump_yaw_diff: 0.4
+      dt_max: 0.1
+    ekf: # 整车 11 维 EKF 噪声(§10)
+      v1: 100.0
+      v2: 400.0
+      slow: {w_thres: 2.0, v1: 10.0, v2: 0.5}
+      fast: {w_thres: 8.0, v1: 100.0, v2: 1000.0}
+      q_rlh: 1.0e-4
+      r_yaw: 4.0e-3
+      r_pitch: 4.0e-3
+      r_dist: 9.0e-2
+      r_armor_yaw: 9.0e-2
+      default_radius: 0.26
+      outpost_radius: 0.2765
+      base_radius: 0.3205
+      outpost_v2: 0.1
+      outpost_w_clamp: 2.51
+      p0: [1.0, 64.0, 1.0, 64.0, 1.0, 64.0, 0.4, 10.0, 0.04, 0.04, 0.04]
       
   shoot: {}
 
