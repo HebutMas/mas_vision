@@ -55,6 +55,12 @@ target_link_libraries(algorithm_test PRIVATE tools)
 
 add_test(NAME algorithm COMMAND algorithm_test)
 
+# 标定:棋盘格内参 + 手眼外参
+add_executable(calibration_test calibration/test.cpp)
+target_link_libraries(calibration_test PRIVATE tools)
+
+add_test(NAME calibration COMMAND calibration_test)
+
 # 退出信号:验证 SIGINT 置位退出标志。
 add_executable(exiter_test exiter/test.cpp)
 target_link_libraries(exiter_test PRIVATE tools)

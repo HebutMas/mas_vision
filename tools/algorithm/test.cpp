@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <random>
 
 namespace
 {
@@ -102,6 +103,53 @@ int main()
         const bool   vel_ok  = std::fabs(ekf.x[1] - 0.5) < 0.05 && std::fabs(ekf.x[3] + 0.2) < 0.05;
         check(pos_err < 0.05 && vel_ok, "ekf cv convergence");
         check(ekf.data["nis"] > 0.0 && !ekf.recent_nis_failures.empty(), "ekf nis bookkeeping");
+    }
+
+    { // χ² 标定:真值噪声与 Q/R 同源时,平稳 NIS 均值应收敛到观测维度 m=2。
+        // 固定种子保证可复现;若用后验残差配后验 P 算 NIS,均值会被压到 ~0.1,本用例即失败。
+        Eigen::VectorXd x0 = Eigen::VectorXd::Zero(4);
+        const Eigen::MatrixXd p0 = Eigen::MatrixXd::Identity(4, 4);
+        tools::ExtendedKalmanFilter ekf(x0, p0);
+
+        const double dt = 0.05, sig_a = 2.0, sig_r = 0.1;
+        Eigen::MatrixXd f_mat = Eigen::Matrix4d::Identity();
+        f_mat(0, 1) = f_mat(2, 3) = dt;
+        // 分段常值加速度模型的过程噪声 Q = σ_a² · [[dt⁴/4, dt³/2], [dt³/2, dt²]]
+        const double q_p = dt * dt * dt * dt / 4.0 * sig_a * sig_a;
+        const double q_m = dt * dt * dt / 2.0 * sig_a * sig_a;
+        const double q_v = dt * dt * sig_a * sig_a;
+        Eigen::MatrixXd q_mat = Eigen::MatrixXd::Zero(4, 4);
+        q_mat(0, 0) = q_mat(2, 2) = q_p;
+        q_mat(0, 1) = q_mat(1, 0) = q_mat(2, 3) = q_mat(3, 2) = q_m;
+        q_mat(1, 1) = q_mat(3, 3) = q_v;
+        Eigen::MatrixXd h_mat(2, 4);
+        h_mat << 1, 0, 0, 0, 0, 0, 1, 0;
+        const Eigen::MatrixXd r_mat = Eigen::MatrixXd::Identity(2, 2) * sig_r * sig_r;
+
+        std::mt19937           rng(20261013U);
+        std::normal_distribution<double> acc(0.0, sig_a), meas(0.0, sig_r);
+        Eigen::Vector4d        truth = Eigen::Vector4d::Zero();
+        double                 sum   = 0.0;
+        int                    n     = 0;
+        for (int i = 0; i < 3000; ++i)
+        {
+            const double ax = acc(rng), ay = acc(rng);
+            truth[0] += truth[1] * dt + ax * dt * dt / 2.0;
+            truth[1] += ax * dt;
+            truth[2] += truth[3] * dt + ay * dt * dt / 2.0;
+            truth[3] += ay * dt;
+            ekf.predict(f_mat, q_mat);
+            const Eigen::Vector2d z(truth[0] + meas(rng), truth[2] + meas(rng));
+            ekf.update(z, h_mat, r_mat);
+            if (i >= 300)
+            {
+                sum += ekf.last_nis;
+                ++n;
+            }
+        }
+        const double mean_nis = sum / static_cast<double>(n);
+        std::cerr << "nis mean = " << mean_nis << " (期望 ~2)\n";
+        check(mean_nis > 1.4 && mean_nis < 2.6, "ekf nis chi2 calibration (mean ~ m=2)");
     }
 
     { // 一维角度状态 θ，已知 ω=0.4，跨多圈回卷仍跟住

@@ -15,7 +15,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Which apps to build; edit this list. Options: infantry video hero sentry dart calibration
-set(APPS infantry video calibration)
+set(APPS infantry video calibration calibration_handeye)
 
 # 远程调试(Rerun):默认开启。可在配置时用 -DRM_DEBUG=OFF 关闭,跳过 Rerun/Arrow 编译。
 option(RM_DEBUG "Enable Rerun remote-debugging (builds Arrow, slow)" ON)

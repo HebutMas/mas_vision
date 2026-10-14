@@ -36,6 +36,22 @@ enum class Kind : std::uint8_t
     base,
 };
 
+// 装甲板物理尺寸(m),宽 = 两灯条间距,高 = 板面高。
+struct ArmorSize
+{
+    double width;
+    double height;
+};
+
+// 只有 hero 用大板,其余兵种都是小板。
+inline constexpr ArmorSize SMALL_ARMOR{0.135, 0.060};
+inline constexpr ArmorSize LARGE_ARMOR{0.225, 0.120};
+
+// 灯条发光长,解 PnP 物点时用
+inline constexpr double LIGHTBAR_LENGTH{0.055};
+
+[[nodiscard]] constexpr ArmorSize armor_size_of(Kind kind) { return (kind == Kind::hero) ? LARGE_ARMOR : SMALL_ARMOR; }
+
 // 2D 装甲板,corners 顺序固定为 tl, tr, br, bl(像素坐标)。
 struct Armor2d
 {

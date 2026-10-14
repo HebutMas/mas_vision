@@ -1,10 +1,16 @@
 #include "tools/calibration/calibration.hpp"
 
-#include <opencv2/calib3d.hpp>
+#include <Eigen/Geometry>
 
+#include <opencv2/calib3d.hpp>
+#include <opencv2/core/eigen.hpp>
+
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace tools::calibration
 {
@@ -62,6 +68,62 @@ IntrinsicResult calibrate_intrinsic(const std::vector<std::vector<cv::Point2f>> 
     {
         result.reprojection_error = total / static_cast<double>(count);
     }
+    return result;
+}
+
+HandEyeResult calibrate_hand_eye(const std::vector<HandEyeSample> &samples)
+{
+    // 手眼标定靠不同姿态之间的旋转约束,太少或无转动都解不出来。
+    if (samples.size() < 3)
+    {
+        throw std::invalid_argument("calibrate_hand_eye needs at least 3 samples, got " + std::to_string(samples.size()));
+    }
+
+    std::vector<cv::Mat> r_gimbal2world_list;
+    std::vector<cv::Mat> t_gimbal2world_list;
+    std::vector<cv::Mat> rvecs;
+    std::vector<cv::Mat> tvecs;
+    for (const auto &sample : samples)
+    {
+        r_gimbal2world_list.push_back(sample.r_gimbal2world);
+        t_gimbal2world_list.push_back(sample.t_gimbal2world);
+        rvecs.push_back(sample.rvec);
+        tvecs.push_back(sample.tvec);
+    }
+
+    HandEyeResult result;
+    cv::calibrateHandEye(r_gimbal2world_list, t_gimbal2world_list, rvecs, tvecs, result.r_camera2gimbal, result.t_camera2gimbal,
+                         cv::CALIB_HAND_EYE_TSAI);
+
+    // 一致性自检:各组 r_gimbal2world * r_camera2gimbal * r_board2camera 都应等于 r_board2world,
+    // 取两两夹角的最大值当偏差。角度太集中时它会明显变大,提醒重新采数据。
+    Eigen::Matrix3d r_camera2gimbal;
+    cv::cv2eigen(result.r_camera2gimbal, r_camera2gimbal);
+
+    std::vector<Eigen::Matrix3d> r_board2world;
+    r_board2world.reserve(samples.size());
+    for (const auto &sample : samples)
+    {
+        Eigen::Matrix3d r_gimbal2world;
+        cv::cv2eigen(sample.r_gimbal2world, r_gimbal2world);
+
+        cv::Mat r_board2camera_cv;
+        cv::Rodrigues(sample.rvec, r_board2camera_cv);
+        Eigen::Matrix3d r_board2camera;
+        cv::cv2eigen(r_board2camera_cv, r_board2camera);
+
+        r_board2world.emplace_back(r_gimbal2world * r_camera2gimbal * r_board2camera);
+    }
+
+    double max_deviation = 0.0;
+    for (std::size_t i = 0; i < r_board2world.size(); ++i)
+    {
+        for (std::size_t j = i + 1; j < r_board2world.size(); ++j)
+        {
+            max_deviation = std::max(max_deviation, Eigen::AngleAxisd(r_board2world[i].transpose() * r_board2world[j]).angle());
+        }
+    }
+    result.consistency_deg = max_deviation * 180.0 / M_PI;
     return result;
 }
 

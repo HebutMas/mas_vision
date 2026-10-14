@@ -33,4 +33,24 @@ struct IntrinsicResult
 [[nodiscard]] IntrinsicResult calibrate_intrinsic(const std::vector<std::vector<cv::Point2f>> &image_points, const BoardConfig &board,
                                                   const cv::Size &image_size);
 
+// 手眼标定的一组样本:云台在世界系的姿态(位置视为世界原点,故 t 恒为 0) + 标定板在相机系的位姿(板 -> 相机)。
+struct HandEyeSample
+{
+    cv::Mat r_gimbal2world; // 3x3 CV_64F
+    cv::Mat t_gimbal2world; // 3x1 CV_64F
+    cv::Mat rvec;           // 3x1,旋转向量
+    cv::Mat tvec;           // 3x1,板 -> 相机(米)
+};
+
+// 手眼标定结果:相机系 -> 云台系。
+struct HandEyeResult
+{
+    cv::Mat r_camera2gimbal;      // 3x3 CV_64F
+    cv::Mat t_camera2gimbal;      // 3x1 CV_64F(米)
+    double  consistency_deg{0.0}; // AX=XB 各组一致性偏差(度),越小越好
+};
+
+// 用多组(云台姿态, 板位姿)标定相机 -> 云台的外参。至少要 3 组,且组间云台姿态要有足够转动。
+[[nodiscard]] HandEyeResult calibrate_hand_eye(const std::vector<HandEyeSample> &samples);
+
 } // namespace tools::calibration

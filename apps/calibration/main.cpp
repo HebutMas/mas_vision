@@ -171,7 +171,7 @@ void write_result(const std::string &path, const cv::Mat &camera_matrix, const c
     out << "distort_coeff: " << format_list(d_values) << "\n";
 }
 
-// 把当前画面(带角点)发到 Rerun;失败只提示,不影响标定。
+// 把当前画面发到 Rerun;失败只提示,不影响标定。
 // 径向畸变必须单调(OpenCV 文档原话:估计出的参数非单调就是标定失败)。
 // f(r) = 1 + k1 r^2 + k2 r^4 + k3 r^6,看 f'(r) = 2k1 r + 4k2 r^3 + 6k3 r^5 在成像范围内是否变号。
 [[nodiscard]] bool distortion_monotonic(const cv::Mat &distort_coeff, double max_radius)
@@ -195,7 +195,7 @@ void write_result(const std::string &path, const cv::Mat &camera_matrix, const c
     return true;
 }
 
-// 发一张已经画好的图到 Rerun(JPEG,比原始 BGR 小一两个数量级)。
+// 发一张已经画好的图到 Rerun
 void push_jpeg(tools::debug::Sink &sink, const cv::Mat &vis)
 {
     if (!sink.active() || vis.empty())
@@ -392,10 +392,8 @@ try
                           "calibration");
     }
 
-    // ---- 校验 ----
-    // 上面那个 reprojection 是"对采集到的这几张图"的残差,数据分布不好时它会虚低(全都拍在画面
-    // 中央就很好看),所以不算校验。这里拿实时新画面重新 PnP + 重投影算误差,并把去畸变画面发到
-    // Rerun:误差小 + 棋盘格直线仍然是直的,才算标定可用。
+    // 校验
+    // 拿实时新画面重新 PnP + 重投影算误差,并把去畸变画面发到Rerun:误差小 + 棋盘格直线仍然是直的,才算标定可用。
     tools::debug::log(tools::debug::Level::info, "verify: keep the board in view; reprojection error and undistorted view go to Rerun",
                       "calibration");
 

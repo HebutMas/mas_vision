@@ -1,10 +1,10 @@
 calibration:
-  camera: usbcamera # usbcamera/hikcamera
+  camera: hikcamera # usbcamera/hikcamera
   board:
     rows: 10 # 棋盘格内角点行数
     cols: 7 # 棋盘格内角点列数
     square_size: 0.015 # 方格边长(米)
-  samples: 10 # 需要多少张有效图(控制台按 s 手动触发保存)
+  samples: 80 # 需要多少张有效图(控制台按 s 手动触发保存)
   output: apps/calibration/result.yaml # 结果文件
 hikcamera:
   serial: "" # 留空则用枚举到的第一台

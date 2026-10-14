@@ -28,4 +28,10 @@ inline std::chrono::nanoseconds since_base(TimePoint point) noexcept
   return std::chrono::duration_cast<std::chrono::nanoseconds>(point - base());
 }
 
+// 当前时刻相对统一起点的秒数
+inline double now_seconds() noexcept
+{
+  return std::chrono::duration<double>(since_base(now())).count();
+}
+
 } // namespace tools::time

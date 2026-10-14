@@ -1,4 +1,4 @@
-set(KNOWN_APPS infantry video hero sentry dart calibration)
+set(KNOWN_APPS infantry video hero sentry dart calibration calibration_handeye)
 
 foreach(app ${APPS})
   if(NOT app IN_LIST KNOWN_APPS)
