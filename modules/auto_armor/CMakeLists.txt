@@ -10,10 +10,7 @@ add_library(auto_armor STATIC
   detection/lightbar.cpp
   debug/visualize.cpp
   models/model.cpp
-  models/shenzhen_model.cpp
-  track/solver.cpp
-  track/target.cpp
-  track/tracker.cpp)
+  models/shenzhen_model.cpp)
 target_link_libraries(auto_armor PUBLIC tools ${OpenCV_LIBS} openvino::runtime)
 
 # 仓库根目录(编译期写死):config 里的相对路径(如 detector.model)按仓库根解析,

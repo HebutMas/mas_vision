@@ -1,4 +1,3 @@
-#include "modules/auto_armor/debug/visualize.hpp"
 #include "modules/auto_armor/detection/detector.hpp"
 #include "tools/config/config.hpp"
 

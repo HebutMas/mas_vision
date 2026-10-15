@@ -59,7 +59,6 @@ class Debug
 
     tools::LatestFrame<DebugFrame> debug_in_;
     std::thread                    debug_thread_;
-    rm::armor::SolverConfig        solver_config_;
 #endif
 };
 

@@ -95,9 +95,9 @@ try
         {
             const std::optional<rm::armor::Color> enemy_color = red_mode ? rm::armor::Color::red : rm::armor::Color::blue;
             const double                          stamp       = std::chrono::duration<double>(timestamp - tools::time::base()).count();
-            // 串口四元数为云台在世界系下的姿态,用它把观测旋到世界系跟踪。
-            const Eigen::Matrix3d r_gimbal2world = state.quaternion().normalized().toRotationMatrix().cast<double>();
-            auto                  result         = auto_aim.process(image, stamp, enemy_color, r_gimbal2world);
+
+            const Eigen::Quaterniond q_imu = state.quaternion().normalized().cast<double>();
+            auto                     result = auto_aim.process(image, stamp, enemy_color, q_imu);
             const double          detect_ms      = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - detect_begin).count();
 
             debug.push(image, frame++, timestamp, state, std::move(result), detect_ms);

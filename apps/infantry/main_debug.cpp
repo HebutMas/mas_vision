@@ -55,9 +55,9 @@ void log_serial(tools::debug::Sink &sink, const hardware::serialport::ReceivePac
 
 Debug::Debug(const std::string &application_id, const tools::config::Config &config) : sink_(application_id)
 {
+    (void)config;
 #ifdef RM_DEBUG
-    solver_config_ = rm::armor::load_solver_config(config);
-    debug_thread_  = std::thread([this] {
+    debug_thread_ = std::thread([this] {
         std::unique_ptr<tools::video::VideoEncoder> encoder;
         DebugFrame                                  f;
         // 阻塞等待最新帧;只有 Debug 析构 close() 时才返回 false 退出。
@@ -71,7 +71,7 @@ Debug::Debug(const std::string &application_id, const tools::config::Config &con
             sink_.set_frame(f.frame);
             sink_.set_time("time", timestamp);
             log_serial(sink_, f.serial);
-            rm::armor::draw(f.image, f.armor_result.target, solver_config_);
+            rm::armor::draw(f.image, f.armor_result.detection);
             rm::buff::draw(f.image, f.rune_detection);
             draw_latency(f.image, f.latency_ms);
             try
@@ -98,8 +98,6 @@ Debug::Debug(const std::string &application_id, const tools::config::Config &con
             }
         }
     });
-#else
-    (void)config;
 #endif
 }
 

@@ -62,15 +62,22 @@ struct Armor2d
     float                      confidence{0.0F};
 };
 
-// 3D 装甲板观测:solver(PnP)输出,云台(odom)系(x 前、y 左、z 上)
+// 3D 装甲板观测:solver(PnP + 手眼外参 + IMU 姿态)输出,坐标系合同见 docs/coordinates.md。
+// in_gimbal 与 in_world 只差一个 R_gimbal2world;跟踪与火控一律用 in_world。
 struct Armor3d
 {
-    Kind            kind{Kind::infantry1};        // 名称类别，关联依据
-    Color           color{Color::blue};           // 颜色
-    Eigen::Vector3d xyz{Eigen::Vector3d::Zero()}; // 云台系,米
-    double          yaw{0.0};                     // 装甲板朝向(法线方位角),yaw-only 平面假设
-    double          obs_std{0.0};                 // 观测不确定度(越远越大),预留
-    float           confidence{0.0F};             // 检测置信度(只用于可视化)
+    Kind  kind{Kind::infantry1};
+    Color color{Color::blue};
+    float confidence{0.0F};
+
+    Eigen::Vector3d xyz_in_gimbal{Eigen::Vector3d::Zero()}; // 板心,米
+    Eigen::Vector3d xyz_in_world{Eigen::Vector3d::Zero()};
+    // 板姿态欧拉角 [yaw, pitch, roll](eulers(R_armor2xxx, 2, 1, 0))。
+    // yaw = 板本体系 x 轴方位角 = 内法线方向(由板心指向整车旋转中心)。
+    Eigen::Vector3d ypr_in_gimbal{Eigen::Vector3d::Zero()};
+    Eigen::Vector3d ypr_in_world{Eigen::Vector3d::Zero()};
+    Eigen::Vector3d ypd_in_world{Eigen::Vector3d::Zero()}; // 世界系球坐标 [方位, 俯仰, 距离],俯仰抬头为正
+    double          yaw_raw{0.0};                          // yaw 重投影优化前的值,调参对照用
 };
 
 // 2D 灯条。

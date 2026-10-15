@@ -8,8 +8,19 @@ serial:
   parity: none # none/even/odd
   stopbits: 1 # 1/2
   flowcontrol: none # none/rtscts
-  timestamp_offset: 0.0
-  imu_to_gimbal_rpy: [0.0, 0.0, 180.0] # IMU 系 -> 云台系 的安装旋转(ZYX 欧拉角,单位度)
+  timestamp_offset: -0.001 # IMU 姿态时间戳偏移(秒):到达时刻 + offset;对齐到相机曝光时刻(sp25 取 -1ms)
+
+# 手眼/安装标定值。当前直接取 sp25 configs/demo.yaml(重投影误差 0.2697px)作测试基准,
+# 自家车标完替换同名三项即可。语义见 docs/coordinates.md。
+calibration:
+  # 相机系 -> 云台系(x 前 y左 z上),行主序 3x3
+  r_camera2gimbal: [-0.0083195760046954614, 0.010498791137270739, 0.99991027599468041, -0.99960756138647755, -0.026835747568381807, -0.0080352891314148939, 0.026748978935305992, -0.99958472279097077, 0.010717933047771133]
+  # 相机光心在云台系的坐标,米
+  t_camera2gimbal: [0.094969301833534511, 0.095006290298006682, 0.050987066291756609]
+  # IMU 本体轴相对云台轴的安装旋转 A(v_imubody = A * v_gimbal),行主序 3x3。
+  # 下位机发的是原始 IMU 姿态,世界系按 R_gimbal2world = Aᵀ * R(q) * A 构造。
+  r_gimbal2imubody: [-1, 0, 0, 0, -1, 0, 0, 0, 1]
+
 hikcamera:
   serial: "" # 留空则用枚举到的第一台
   exposure_us: 5000
@@ -25,7 +36,6 @@ hikcamera:
   #相机内参
   camera_matrix: [1818.3669452465165, 0, 751.06226574703498, 0, 1822.494494078506, 530.43671556112133, 0, 0, 1]
   distort_coeffs: [-0.077944626599568856, 0.15447826031486889, -0.0025714394278524674, 0.00083016311301273629, 0]
-  translation: [0.0, 0.0, 0.0] # 云台旋转中心到相机光心平移距离,云台系(米)，在sw上测
 usbcamera:
   device_path: /dev/video0
   width: 1280
@@ -53,33 +63,7 @@ auto_aim:
       refine_start_ratio: 0.4 # 从质心沿对称轴 0.4L 处开始搜
       refine_end_ratio: 0.6 # 搜到 0.6L(窗口 = 0.2L)
 
-  track:
-    tracker: # 状态机/关联/健康监控(§10)
-      min_detect_count: 5
-      max_temp_lost_count: 25
-      outpost_max_temp_lost_count: 75
-      switch_confirm_count: 3
-      max_match_mahalanobis2: 50.0
-      nis_reset_ratio: 0.4
-      jump_yaw_diff: 0.4
-      dt_max: 0.1
-    ekf: # 整车 11 维 EKF 噪声(§10)
-      v1: 100.0
-      v2: 400.0
-      slow: {w_thres: 2.0, v1: 10.0, v2: 0.5}
-      fast: {w_thres: 8.0, v1: 100.0, v2: 1000.0}
-      q_rlh: 1.0e-4
-      r_yaw: 4.0e-3
-      r_pitch: 4.0e-3
-      r_dist: 9.0e-2
-      r_armor_yaw: 9.0e-2
-      default_radius: 0.26
-      outpost_radius: 0.2765
-      base_radius: 0.3205
-      outpost_v2: 0.1
-      outpost_w_clamp: 2.51
-      p0: [1.0, 64.0, 1.0, 64.0, 1.0, 64.0, 0.4, 10.0, 0.04, 0.04, 0.04]
-      
+  track: {}
   shoot: {}
 
 # 打符
