@@ -93,6 +93,39 @@ using hardware::hikcamera::HikFrame;
 using hardware::usbcamera::UsbCamera;
 using hardware::usbcamera::UsbFrame;
 
+// 读 9 个数的行主序 3x3。缺键 / 位数不符一律抛异常
+[[nodiscard]] std::vector<double> require_matrix3(const tools::config::Config &config, const std::string &key)
+{
+    const auto values = config.require<std::vector<double>>(key);
+    if (values.size() != 9U)
+    {
+        throw std::invalid_argument(key + " must be 9 values (row-major 3x3), got " + std::to_string(values.size()));
+    }
+    return values;
+}
+
+// 行主序 9 数 -> Eigen 3x3。
+[[nodiscard]] Eigen::Matrix3d to_matrix3(const std::vector<double> &values)
+{
+    Eigen::Matrix3d out;
+    for (int row = 0; row < 3; ++row)
+    {
+        for (int col = 0; col < 3; ++col) out(row, col) = values[(row * 3) + col];
+    }
+    return out;
+}
+
+// 读畸变系数,位数按 OpenCV 支持的 k1..k4/p1..p2 组合校验。
+[[nodiscard]] cv::Mat require_distortion(const tools::config::Config &config, const std::string &key)
+{
+    const auto values = config.require<std::vector<double>>(key);
+    if (values.size() != 4U && values.size() != 5U && values.size() != 8U && values.size() != 12U && values.size() != 14U)
+    {
+        throw std::invalid_argument(key + " must have 4/5/8/12/14 values, got " + std::to_string(values.size()));
+    }
+    return cv::Mat(1, static_cast<int>(values.size()), CV_64F, const_cast<double *>(values.data())).clone();
+}
+
 // 手眼标定配置
 struct HandEyeConfig
 {
@@ -104,7 +137,7 @@ struct HandEyeConfig
     cv::Mat                         distort_coeff; // 畸变 1xN CV_64F
 };
 
-// 读配置:标定参数 + 相机内参
+// 读配置:标定参数 + 所选相机内参
 HandEyeConfig load_hand_eye_config(const tools::config::Config &config)
 {
     HandEyeConfig     out;
@@ -116,10 +149,15 @@ HandEyeConfig load_hand_eye_config(const tools::config::Config &config)
     out.samples           = config.value(t + "samples", out.samples);
     out.output            = config.value(t + "output", out.output);
 
-    const auto k      = config.require<std::vector<double>>("hikcamera.camera_matrix");
-    auto       d      = config.value<std::vector<double>>("hikcamera.distort_coeffs", {});
-    out.camera_matrix = cv::Mat(3, 3, CV_64F, const_cast<double *>(k.data())).clone();
-    out.distort_coeff = cv::Mat(1, static_cast<int>(d.size()), CV_64F, const_cast<double *>(d.data())).clone();
+    if (out.camera != "hikcamera" && out.camera != "usbcamera")
+    {
+        throw std::invalid_argument(t + "camera must be usbcamera/hikcamera, got " + out.camera);
+    }
+
+    const std::string cam = out.camera + ".";
+    const auto        k   = require_matrix3(config, cam + "camera_matrix");
+    out.camera_matrix     = cv::Mat(3, 3, CV_64F, const_cast<double *>(k.data())).clone();
+    out.distort_coeff     = require_distortion(config, cam + "distort_coeffs");
     return out;
 }
 
@@ -160,9 +198,21 @@ std::string format_list(const std::vector<double> &values)
     return out.str();
 }
 
-// 写标定结果(
-void write_result(const std::string &path, const cv::Mat &r_camera2gimbal, const cv::Mat &t_camera2gimbal, double consistency_deg,
-                  const Eigen::Vector3d &camera_ypr_deg)
+// Eigen 3x3 -> 行优先 9 个数,写 yaml 用。
+std::vector<double> mat_to_list(const Eigen::Matrix3d &mat)
+{
+    std::vector<double> values;
+    values.reserve(9U);
+    for (int row = 0; row < 3; ++row)
+    {
+        for (int col = 0; col < 3; ++col) values.push_back(mat(row, col));
+    }
+    return values;
+}
+
+// 写标定结果:外参 + 本次标定所用的安装旋转 A
+void write_result(const std::string &path, const Eigen::Matrix3d &r_gimbal2imubody, const cv::Mat &r_camera2gimbal, const cv::Mat &t_camera2gimbal,
+                  double consistency_deg, const Eigen::Vector3d &camera_ypr_deg)
 {
     std::ofstream file(path);
     if (!file)
@@ -170,13 +220,13 @@ void write_result(const std::string &path, const cv::Mat &r_camera2gimbal, const
         throw std::runtime_error("cannot write result file: " + path);
     }
     file << std::setprecision(10);
-    file << "# Hand eye calibration result: camera -> gimbal\n";
-    file << "# AX=BX consistency deviation: " << std::setprecision(3) << consistency_deg
-         << " deg (the smaller the better; >1 means the sampled angles were too concentrated)\n";
-    file << "# Camera offset from ideal mounting: yaw " << camera_ypr_deg[0] << " pitch " << camera_ypr_deg[1] << " roll " << camera_ypr_deg[2]
-         << " deg\n";
-    file << "R_camera2gimbal: " << format_list(mat_to_list(r_camera2gimbal)) << '\n';
-    file << "t_camera2gimbal: " << format_list(mat_to_list(t_camera2gimbal)) << '\n';
+    file << "# AX=BX 一致性偏差: " << std::setprecision(3) << consistency_deg << " deg(越小越好;>1 说明采样姿态太集中,重标)\n";
+    file << std::setprecision(10);
+    file << "# 相机相对理想安装的偏角: yaw " << camera_ypr_deg[0] << " pitch " << camera_ypr_deg[1] << " roll " << camera_ypr_deg[2] << " deg\n";
+    file << "calibration:\n";
+    file << "  r_camera2gimbal: " << format_list(mat_to_list(r_camera2gimbal)) << '\n';
+    file << "  t_camera2gimbal: " << format_list(mat_to_list(t_camera2gimbal)) << '\n';
+    file << "  r_gimbal2imubody: " << format_list(mat_to_list(r_gimbal2imubody)) << '\n';
 }
 } // namespace
 
@@ -190,6 +240,9 @@ try
     const tools::config::Config config(RM_CONFIG_PATH);
     const HandEyeConfig         hand_eye    = load_hand_eye_config(config);
     const std::string           output_path = absolute_path(hand_eye.output);
+
+    // 下位机透传原始 IMU 姿态,世界系要按 R_gimbal2world = Aᵀ * R(q) * A 构造。
+    const Eigen::Matrix3d r_gimbal2imubody = to_matrix3(require_matrix3(config, "calibration.r_gimbal2imubody"));
 
     tools::install_exit_handler();
 
@@ -254,7 +307,7 @@ try
         }
 
         // 云台姿态
-        const Eigen::Matrix3d r_gimbal2world = serial.quaternion_at(timestamp).toRotationMatrix().cast<double>();
+        const Eigen::Matrix3d r_gimbal2world = tools::gimbal2world(serial.quaternion_at(timestamp).cast<double>(), r_gimbal2imubody);
 
         // 识别棋盘格
         cv::Mat                  gray;
@@ -294,7 +347,8 @@ try
 
         cv::Mat rvec;
         cv::Mat tvec;
-        cv::solvePnP(object_points, corners, hand_eye.camera_matrix, hand_eye.distort_coeff, rvec, tvec);
+        // 标定板是平面靶标,用 IPPE(平面最优解),与 sp25 一致;默认的 ITERATIVE 走 LM 迭代,可能收敛到别的局部解。
+        cv::solvePnP(object_points, corners, hand_eye.camera_matrix, hand_eye.distort_coeff, rvec, tvec, false, cv::SOLVEPNP_IPPE);
 
         tools::calibration::HandEyeSample sample;
         cv::eigen2cv(r_gimbal2world, sample.r_gimbal2world);
@@ -329,7 +383,8 @@ try
     const Eigen::Matrix3d r_gimbal2ideal{{0, -1, 0}, {0, 0, -1}, {1, 0, 0}};
     const Eigen::Vector3d camera_ypr = tools::eulers(r_gimbal2ideal * r_camera2gimbal_eigen, 1, 0, 2) * 180.0 / M_PI;
 
-    write_result(output_path, hand_eye_result.r_camera2gimbal, hand_eye_result.t_camera2gimbal, hand_eye_result.consistency_deg, camera_ypr);
+    write_result(output_path, r_gimbal2imubody, hand_eye_result.r_camera2gimbal, hand_eye_result.t_camera2gimbal, hand_eye_result.consistency_deg,
+                 camera_ypr);
 
     std::ostringstream summary;
     summary << std::setprecision(6) << std::fixed << "hand eye calibration done: samples=" << samples.size()

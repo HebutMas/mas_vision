@@ -206,4 +206,10 @@ double delta_time(const std::chrono::steady_clock::time_point &a, const std::chr
     return c.count();
 }
 
+Eigen::Matrix3d gimbal2world(const Eigen::Quaterniond &q_imu, const Eigen::Matrix3d &r_gimbal2imubody)
+{
+    const Eigen::Matrix3d &a = r_gimbal2imubody;
+    return a.transpose() * q_imu.normalized().toRotationMatrix() * a;
+}
+
 } // namespace tools

@@ -38,4 +38,8 @@ Eigen::MatrixXd ypd2xyz_jacobian(const Eigen::Vector3d &ypd);
 
 // 计算时间差a - b，单位：s
 double delta_time(const std::chrono::steady_clock::time_point &a, const std::chrono::steady_clock::time_point &b);
+
+// 原始 IMU 姿态 -> 云台系到世界系的旋转:R_gimbal2world = Aᵀ * R_imubody2imuabs(q) * A,A = R_gimbal2imubody。
+// q=I 时结果为 I,即世界系轴向 = 云台系轴向在 IMU 零位姿态
+Eigen::Matrix3d gimbal2world(const Eigen::Quaterniond &q_imu, const Eigen::Matrix3d &r_gimbal2imubody);
 } // namespace tools

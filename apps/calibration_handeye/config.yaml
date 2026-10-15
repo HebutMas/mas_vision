@@ -14,8 +14,11 @@ serial:
   parity: none # none/even/odd
   stopbits: 1 # 1/2
   flowcontrol: none # none/rtscts
-  timestamp_offset: 0.0
-  imu_to_gimbal_rpy: [0.0, 0.0, 180.0] # IMU 系 -> 云台系 的安装旋转(ZYX 欧拉角,单位度)
+  timestamp_offset: -0.001 # 姿态时间戳对齐到相机曝光时刻(秒)
+
+# 安装旋转 A = R_gimbal2imubody(v_imubody = A * v_gimbal),行主序 3x3。
+calibration:
+  r_gimbal2imubody: [-1, 0, 0, 0, -1, 0, 0, 0, 1]
 hikcamera:
   serial: "" # 留空则用枚举到的第一台
   exposure_us: 5000
