@@ -80,7 +80,7 @@ ctest --test-dir build --output-on-failure   # ctest 测试
 
 ```bash
 ./scripts/lint.sh                        # 一次跑完格式 + clang-tidy + cppcheck
-find tools apps \( -name '*.hpp' -o -name '*.cpp' \) -print0 | xargs -0 clang-format -i
+find tools hardware modules apps \( -name '*.hpp' -o -name '*.cpp' \) -print0 | xargs -0 clang-format -i
 run-clang-tidy -p build -quiet
 cppcheck --project=build/compile_commands.json
 ```

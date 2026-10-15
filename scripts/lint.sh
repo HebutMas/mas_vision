@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SRC=(tools hardware apps)
+SRC=(tools hardware modules apps)
 
 echo "==> clang-format"
 find "${SRC[@]}" \( -name '*.hpp' -o -name '*.cpp' \) -print0 |

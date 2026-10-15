@@ -48,7 +48,7 @@ void draw(cv::Mat &image, const Detector::Result &result)
             cv::circle(image, point, radius, keypoint_bgr(k), cv::FILLED);
         }
         const cv::Point   anchor(cvRound(rune.keypoints[kpt_top].x), cvRound(rune.keypoints[kpt_top].y));
-        const std::string label = std::string(kind_name(rune.kind)) + " " + color_name(rune.color) + " " + cv::format("%.2f", rune.confidence);
+        const std::string label       = std::string(kind_name(rune.kind)) + " " + color_name(rune.color) + " " + cv::format("%.2f", rune.confidence);
         const cv::Scalar  label_color = (rune.color == Color::red) ? cv::Scalar(0, 0, 255) : cv::Scalar(255, 0, 0);
         cv::putText(image, label, anchor, cv::FONT_HERSHEY_SIMPLEX, font_scale, label_color, thickness);
 

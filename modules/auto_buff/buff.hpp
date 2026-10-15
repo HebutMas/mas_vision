@@ -80,12 +80,12 @@ struct RuneRefinement
 // 单个能量机关检测结果。
 struct Rune2d
 {
-    Kind                                    kind{Kind::inactive};         // 状态类别
-    Color                                   color{Color::red};            // 阵营颜色
-    float                                   confidence{0.0F};             // 类别置信度
-    std::array<cv::Point2f, KEYPOINT_COUNT> keypoints{};                  // 5 个关键点(像素)
-    std::array<float, KEYPOINT_COUNT>       keypoint_confidence{};        // 各关键点置信度
-    RuneRefinement                          refinement;                   // 识别后精修结果
+    Kind                                    kind{Kind::inactive};  // 状态类别
+    Color                                   color{Color::red};     // 阵营颜色
+    float                                   confidence{0.0F};      // 类别置信度
+    std::array<cv::Point2f, KEYPOINT_COUNT> keypoints{};           // 5 个关键点(像素)
+    std::array<float, KEYPOINT_COUNT>       keypoint_confidence{}; // 各关键点置信度
+    RuneRefinement                          refinement;            // 识别后精修结果
 };
 
 } // namespace rm::buff

@@ -50,7 +50,7 @@ void report_debug(const cv::Mat &image, const rm::buff::Detector::Result &result
         {
             return;
         }
-        cv::Mat             vis = image.clone();
+        cv::Mat vis = image.clone();
         rm::buff::draw(vis, result);
         std::vector<std::uint8_t> jpeg;
         cv::imencode(".jpg", vis, jpeg, {cv::IMWRITE_JPEG_QUALITY, 80});
@@ -64,7 +64,6 @@ void report_debug(const cv::Mat &image, const rm::buff::Detector::Result &result
 }
 #endif
 
-
 void test_image(const std::string &path)
 {
     using namespace rm::buff;
@@ -76,16 +75,16 @@ void test_image(const std::string &path)
         return;
     }
 
-    AutoBuff       auto_buff(make_config());
-    const auto     begin      = std::chrono::steady_clock::now();
-    const auto     result     = auto_buff.process(image);
-    const double   latency_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count();
+    AutoBuff     auto_buff(make_config());
+    const auto   begin      = std::chrono::steady_clock::now();
+    const auto   result     = auto_buff.process(image);
+    const double latency_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count();
 
     check(!result.detection.runes.empty(), "detect finds rune(s) on " + path);
 
     const std::filesystem::path input(path);
     const std::string           output = (input.parent_path() / (input.stem().string() + "_detected.png")).string();
-    cv::Mat                    vis    = image.clone();
+    cv::Mat                     vis    = image.clone();
     rm::buff::draw(vis, result.detection);
     cv::imwrite(output, vis);
 
@@ -143,8 +142,8 @@ void test_refiner()
     rune.keypoints[rm::buff::kpt_right]  = {440.0F, 320.0F};
     rune.keypoints[rm::buff::kpt_bottom] = {320.0F, 440.0F};
 
-    rm::buff::RefinerConfig        config;
-    config.roi_margin_ratio        = 0.6;
+    rm::buff::RefinerConfig config;
+    config.roi_margin_ratio               = 0.6;
     const rm::buff::RuneRefinement result = rm::buff::refine(image, rune, config);
     check(result.is_armor_module_usable, "refiner: armor module usable");
     check(result.is_light_arm_usable, "refiner: light arm usable");

@@ -15,13 +15,13 @@ namespace rm::buff
 
 struct DetectorConfig
 {
-    std::string model;                               // onnx 路径
-    std::string device{"CPU"};                     // OpenVINO 设备
-    float       confidence_threshold{0.8F};          // 类别置信度阈值
-    float       keypoint_confidence_threshold{0.8F}; // 单关键点置信度阈值
-    float       nms_distance_threshold{30.0F};       // 中心距 NMS 阈值(像素)
-    int         min_valid_keypoints{3};              // 有效关键点少于此数则丢弃
-    RefinerConfig refiner;                           // 识别后精修参数
+    std::string   model;                               // onnx 路径
+    std::string   device{"CPU"};                       // OpenVINO 设备
+    float         confidence_threshold{0.8F};          // 类别置信度阈值
+    float         keypoint_confidence_threshold{0.8F}; // 单关键点置信度阈值
+    float         nms_distance_threshold{30.0F};       // 中心距 NMS 阈值(像素)
+    int           min_valid_keypoints{3};              // 有效关键点少于此数则丢弃
+    RefinerConfig refiner;                             // 识别后精修参数
 };
 
 // 从配置读取检测器参数。

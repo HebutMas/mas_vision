@@ -77,10 +77,9 @@ try
         else
         {
             const std::optional<rm::armor::Color> enemy_color = red_mode ? rm::armor::Color::red : rm::armor::Color::blue;
-            const double                          stamp       = std::chrono::duration<double>(hik_frame.timestamp - tools::time::base()).count();
-            const Eigen::Quaterniond q_imu = state.quaternion().normalized().cast<double>();
-            auto                     result = auto_aim.process(hik_frame.image, stamp, enemy_color, q_imu);
-            const double          detect_ms      = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - detect_begin).count();
+            const Eigen::Quaterniond              q_imu       = state.quaternion().normalized().cast<double>();
+            auto                                  result      = auto_aim.process(hik_frame.image, hik_frame.timestamp, q_imu, enemy_color);
+            const double detect_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - detect_begin).count();
 
             debug.push(hik_frame.image, frame++, hik_frame.timestamp, state, std::move(result), detect_ms);
         }

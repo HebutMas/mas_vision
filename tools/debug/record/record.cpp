@@ -286,9 +286,19 @@ Recorder::Recorder(RecordConfig config) : impl_(std::make_unique<Impl>()) { impl
 
 Recorder::~Recorder()
 {
-    if (impl_->active)
+    if (!impl_->active)
+    {
+        return;
+    }
+
+    try
     {
         impl_->stop(true);
+    }
+    catch (...)
+    {
+        // 故意静默
+        static_cast<void>(0);
     }
 }
 

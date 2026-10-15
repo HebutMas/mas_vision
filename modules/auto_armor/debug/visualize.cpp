@@ -12,11 +12,11 @@ namespace
 {
 
 // Canvas调色板
-[[nodiscard]] cv::Scalar shape_color() noexcept { return {127, 127, 127}; }   // 灰:装甲板框
-[[nodiscard]] cv::Scalar corner_color() noexcept { return {0, 255, 255}; }   // 黄:角点
+[[nodiscard]] cv::Scalar shape_color() noexcept { return {127, 127, 127}; } // 灰:装甲板框
+[[nodiscard]] cv::Scalar corner_color() noexcept { return {0, 255, 255}; }  // 黄:角点
 [[nodiscard]] cv::Scalar label_color() noexcept { return {0, 255, 255}; }   // 黄:兵种标签
-[[nodiscard]] cv::Scalar white_color() noexcept { return {255, 255, 255}; }  // 白:灯条/计数
-[[nodiscard]] cv::Scalar red_color() noexcept { return {0, 0, 255}; }        // 红:光学中心十字
+[[nodiscard]] cv::Scalar white_color() noexcept { return {255, 255, 255}; } // 白:灯条/计数
+[[nodiscard]] cv::Scalar red_color() noexcept { return {0, 0, 255}; }       // 红:光学中心十字
 
 // 文本绘制
 void draw_text(cv::Mat &image, const std::string &text, cv::Point origin, const cv::Scalar &color, double scale, int thickness)
@@ -80,9 +80,8 @@ void draw(cv::Mat &image, const Detector::Result &detection)
             }
         }
 
-        const cv::Point  label_origin{cvRound(top.x), cvRound(top.y - (15.0 * font_scale))};
-        const std::string label =
-            std::string(kind_name(armor.kind)) + " " + color_name(armor.color) + " " + cv::format("%.2f", armor.confidence);
+        const cv::Point   label_origin{cvRound(top.x), cvRound(top.y - (15.0 * font_scale))};
+        const std::string label = std::string(kind_name(armor.kind)) + " " + color_name(armor.color) + " " + cv::format("%.2f", armor.confidence);
         draw_text(image, label, label_origin, label_color(), 0.5 * font_scale, thickness);
     }
 

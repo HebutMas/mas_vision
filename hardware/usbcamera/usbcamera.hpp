@@ -24,7 +24,7 @@ struct UsbCameraConfig
     int         width{1280};                // 图像宽度。
     int         height{720};                // 图像高度。
     int         fps{30};                    // 帧率。
-    std::string fourcc{"MJPG"};           // 像素格式,如 MJPG / YUYV。
+    std::string fourcc{"MJPG"};             // 像素格式,如 MJPG / YUYV。
     int         auto_exposure_enable{1};    // 自动曝光:1=启用(自动),0=关闭
     double      exposure{50.0};             // 曝光值(仅手动模式)。
     double      gain{20.0};                 // 增益(仅手动模式)。

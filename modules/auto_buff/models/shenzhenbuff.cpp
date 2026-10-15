@@ -61,8 +61,8 @@ void decode_shenzhenbuff(const ModelOutput &output, const DecodeParams &params, 
                 valid = false;
                 break;
             }
-            rune.keypoints[k] = {std::min(x, static_cast<float>(params.image_size.width - 1)),
-                                 std::min(y, static_cast<float>(params.image_size.height - 1))};
+            rune.keypoints[k]           = {std::min(x, static_cast<float>(params.image_size.width - 1)),
+                                           std::min(y, static_cast<float>(params.image_size.height - 1))};
             rune.keypoint_confidence[k] = kconf;
             if (kconf >= params.keypoint_confidence_threshold)
             {

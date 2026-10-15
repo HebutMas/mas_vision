@@ -4,6 +4,7 @@
 #include <deque>
 #include <functional>
 #include <map>
+#include <string>
 
 namespace tools
 {
@@ -16,7 +17,7 @@ class ExtendedKalmanFilter
     ExtendedKalmanFilter() = default;
 
     ExtendedKalmanFilter(
-        Eigen::VectorXd x0, Eigen::MatrixXd p0,
+        Eigen::VectorXd x0, Eigen::MatrixXd P0,
         std::function<Eigen::VectorXd(const Eigen::VectorXd &, const Eigen::VectorXd &)> x_add = [](const Eigen::VectorXd &a,
                                                                                                     const Eigen::VectorXd &b) { return a + b; });
 
@@ -38,13 +39,11 @@ class ExtendedKalmanFilter
     std::map<std::string, double> data; // 卡方检验数据
     std::deque<int>               recent_nis_failures{0};
     size_t                        window_size = 100;
-    // NIS 失败阈值(χ²(4) 95% 分位 ≈ 9.488)。sp25 原文误用 0.711,此处修正。
-    double nis_threshold = 9.5;
-    double last_nis;
+    double                        last_nis{0.0};
 
   private:
-    Eigen::MatrixXd                                                                  identity_;
-    std::function<Eigen::VectorXd(const Eigen::VectorXd &, const Eigen::VectorXd &)> x_add_;
+    Eigen::MatrixXd                                                                  I;
+    std::function<Eigen::VectorXd(const Eigen::VectorXd &, const Eigen::VectorXd &)> x_add;
 
     int nees_count_  = 0;
     int nis_count_   = 0;

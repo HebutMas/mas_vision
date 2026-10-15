@@ -4,6 +4,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace tools::config
 {
@@ -54,6 +55,20 @@ class Config
         {
             throw std::runtime_error("Configuration item type error " + path + ": " + error.what());
         }
+    }
+
+    // 按 `.` 路径取可选序列(如 filter_param_sets 这类列表);缺失或不是序列时返回空。
+    [[nodiscard]] std::vector<YAML::Node> sequence(const std::string &path) const
+    {
+        std::vector<YAML::Node> out;
+        const YAML::Node        node = find(path);
+        if (!node || !node.IsSequence())
+        {
+            return out;
+        }
+        out.reserve(node.size());
+        for (const auto &item : node) out.push_back(item);
+        return out;
     }
 
   private:

@@ -1,12 +1,13 @@
 #include "extended_kalman_filter.hpp"
 
 #include <numeric>
+#include <utility>
 
 namespace tools
 {
-ExtendedKalmanFilter::ExtendedKalmanFilter(Eigen::VectorXd x0, Eigen::MatrixXd p0,
+ExtendedKalmanFilter::ExtendedKalmanFilter(Eigen::VectorXd x0, Eigen::MatrixXd P0,
                                            std::function<Eigen::VectorXd(const Eigen::VectorXd &, const Eigen::VectorXd &)> x_add)
-    : x(std::move(x0)), P(std::move(p0)), identity_(Eigen::MatrixXd::Identity(x.rows(), x.rows())), x_add_(std::move(x_add))
+    : x(std::move(x0)), P(std::move(P0)), I(Eigen::MatrixXd::Identity(x.rows(), x.rows())), x_add(std::move(x_add))
 {
     data["residual_yaw"]        = 0.0;
     data["residual_pitch"]      = 0.0;
@@ -47,9 +48,9 @@ Eigen::VectorXd ExtendedKalmanFilter::update(const Eigen::VectorXd &z, const Eig
 
     // Stable Compution of the Posterior Covariance
     // https://github.com/rlabbe/Kalman-and-Bayesian-Filters-in-Python/blob/master/07-Kalman-Filter-Math.ipynb
-    P = (identity_ - (kalman_gain * H)) * P * (identity_ - (kalman_gain * H)).transpose() + kalman_gain * R * kalman_gain.transpose();
+    P = (I - kalman_gain * H) * P * (I - kalman_gain * H).transpose() + kalman_gain * R * kalman_gain.transpose();
 
-    x = x_add_(x, kalman_gain * z_subtract(z, h(x)));
+    x = x_add(x, kalman_gain * z_subtract(z, h(x)));
 
     /// 卡方检验
     const Eigen::VectorXd residual       = z_subtract(z, h(x));
@@ -57,17 +58,21 @@ Eigen::VectorXd ExtendedKalmanFilter::update(const Eigen::VectorXd &z, const Eig
     const double          nis            = residual.transpose() * innovation_cov.inverse() * residual;
     const double          nees           = (x - x_prior).transpose() * P.inverse() * (x - x_prior);
 
-    // 卡方检验阈值(自由度=4,取置信水平95%,χ²分位≈9.488)
-    constexpr double NEES_THRESHOLD = 9.5;
+    // 卡方检验阈值（自由度=4，取置信水平95%）
+    constexpr double NIS_THRESHOLD  = 0.711;
+    constexpr double NEES_THRESHOLD = 0.711;
 
-    if (nis > nis_threshold) nis_count_++, data["nis_fail"] = 1;
+    if (nis > NIS_THRESHOLD) nis_count_++, data["nis_fail"] = 1;
     if (nees > NEES_THRESHOLD) nees_count_++, data["nees_fail"] = 1;
     total_count_++;
     last_nis = nis;
 
-    recent_nis_failures.push_back(nis > nis_threshold ? 1 : 0);
+    recent_nis_failures.push_back(nis > NIS_THRESHOLD ? 1 : 0);
 
-    if (recent_nis_failures.size() > window_size) recent_nis_failures.pop_front();
+    if (recent_nis_failures.size() > window_size)
+    {
+        recent_nis_failures.pop_front();
+    }
 
     const int    recent_failures = std::accumulate(recent_nis_failures.begin(), recent_nis_failures.end(), 0);
     const double recent_rate     = static_cast<double>(recent_failures) / recent_nis_failures.size();
